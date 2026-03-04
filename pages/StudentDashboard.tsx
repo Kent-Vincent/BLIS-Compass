@@ -4,6 +4,8 @@ import { motion } from 'motion/react';
 import GlassCard from '../components/GlassCard';
 import { GameCard, MockExam } from '../types';
 import { useAuth } from '../context/AuthContext';
+import MockExamsPage from './student/MockExamsPage';
+import TakeExamPage from './student/TakeExamPage';
 import { 
   Home, 
   Gamepad2, 
@@ -33,12 +35,6 @@ const GAMES: GameCard[] = [
   { id: '2', title: 'DDC Climber', description: 'Scale the mountain by correctly identifying class numbers.', category: 'Classification', icon: 'Mountain', difficulty: 'Beginner' },
   { id: '3', title: 'Reference Quest', description: 'Find the right sources for complex user inquiries.', category: 'Reference Services', icon: 'Search', difficulty: 'Advanced' },
   { id: '4', title: 'Indexing Maze', description: 'Connect related terms using controlled vocabulary.', category: 'Indexing', icon: 'Network', difficulty: 'Intermediate' },
-];
-
-const EXAMS: MockExam[] = [
-  { id: '1', title: 'Full Mockboard A', questionsCount: 100, durationMinutes: 120, topic: 'Comprehensive' },
-  { id: '2', title: 'IT Specialization', questionsCount: 50, durationMinutes: 60, topic: 'Library Tech' },
-  { id: '3', title: 'Management Mastery', questionsCount: 40, durationMinutes: 45, topic: 'Organization' },
 ];
 
 const PROGRESS_DATA = [
@@ -302,44 +298,7 @@ const StudentDashboard: React.FC = () => {
         )}
 
         {activeTab === 'exams' && (
-          <div className="space-y-6">
-            <GlassCard className="bg-slate-800 text-white p-10 relative overflow-hidden border-none shadow-2xl shadow-slate-200">
-               <div className="relative z-10 max-w-lg">
-                  <h2 className="text-3xl font-bold mb-4">Board Exam Simulation</h2>
-                  <p className="text-slate-300 mb-8">Test your knowledge under real exam conditions. Our AI-powered feedback will analyze your weak spots after each session.</p>
-                  <button className="bg-white text-slate-800 px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition-all flex items-center gap-3">
-                    Start Full Simulation <ArrowRight size={20} />
-                  </button>
-               </div>
-               <div className="absolute right-0 bottom-0 opacity-10 text-[180px] pointer-events-none transform translate-y-12">
-                  <GraduationCap size={200} />
-               </div>
-            </GlassCard>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-               {EXAMS.map((exam) => (
-                 <GlassCard key={exam.id} hoverEffect className="border-white/60">
-                    <div className="flex justify-between items-start mb-4">
-                       <h3 className="font-bold text-lg text-slate-800">{exam.title}</h3>
-                       <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-wider">{exam.topic}</span>
-                    </div>
-                    <div className="flex items-center space-x-6 text-sm text-slate-500 mb-6">
-                       <div className="flex items-center gap-2">
-                          <FileText size={16} />
-                          {exam.questionsCount} Items
-                       </div>
-                       <div className="flex items-center gap-2">
-                          <Compass size={16} />
-                          {exam.durationMinutes} Min
-                       </div>
-                    </div>
-                    <button className="w-full border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white py-3 rounded-xl font-bold transition-all">
-                       Take Mock Exam
-                    </button>
-                 </GlassCard>
-               ))}
-            </div>
-          </div>
+          <MockExamsPage />
         )}
       </main>
     </div>

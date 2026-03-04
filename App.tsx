@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import ConfirmEmailPage from './pages/ConfirmEmailPage';
 import EmailVerifiedPage from './pages/EmailVerifiedPage';
 import ResendVerificationPage from './pages/ResendVerificationPage';
+import TakeExamPage from './pages/student/TakeExamPage';
 import ErrorPage from './pages/ErrorPage';
 import { UserRole } from './types';
 
@@ -68,6 +69,15 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute allowedRoles={[UserRole.STUDENT]}>
             <StudentDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/student/mock-exams/:id" 
+        element={
+          <ProtectedRoute allowedRoles={[UserRole.STUDENT]}>
+            <TakeExamPage />
           </ProtectedRoute>
         } 
       />
