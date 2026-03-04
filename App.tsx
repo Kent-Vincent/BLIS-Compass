@@ -7,6 +7,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import RegisterPage from './pages/RegisterPage';
 import ConfirmEmailPage from './pages/ConfirmEmailPage';
+import EmailVerifiedPage from './pages/EmailVerifiedPage';
 import ErrorPage from './pages/ErrorPage';
 import { UserRole } from './types';
 
@@ -57,6 +58,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/" element={<IndexEntry />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+      <Route path="/verified" element={<EmailVerifiedPage />} />
       <Route path="/error" element={<ErrorPage />} />
       
       <Route 

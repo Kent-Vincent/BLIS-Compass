@@ -120,7 +120,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       email,
       password,
       options: {
-        data: { full_name: fullName }
+        data: { full_name: fullName },
+        // Prioritize the Vercel URL for production redirects, fallback to current origin for dev/preview
+        emailRedirectTo: 'https://blis-compass.vercel.app/#/verified'
       }
     });
 
