@@ -121,7 +121,7 @@ const IndexEntry: React.FC = () => {
       </div>
 
       <footer className="mt-16 text-slate-400 text-xs uppercase tracking-widest font-medium">
-        © 2024 LIS ComPASS • Powered by Gemini AI
+        © 2024 LIS ComPASS
       </footer>
     </div>
   );

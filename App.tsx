@@ -6,6 +6,7 @@ import IndexEntry from './pages/IndexEntry';
 import StudentDashboard from './pages/StudentDashboard';
 import StaffDashboard from './pages/StaffDashboard';
 import RegisterPage from './pages/RegisterPage';
+import ConfirmEmailPage from './pages/ConfirmEmailPage';
 import ErrorPage from './pages/ErrorPage';
 import { UserRole } from './types';
 
@@ -55,6 +56,7 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route path="/" element={<IndexEntry />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/confirm-email" element={<ConfirmEmailPage />} />
       <Route path="/error" element={<ErrorPage />} />
       
       <Route 
