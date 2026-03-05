@@ -22,6 +22,7 @@ const StaffSidebar: React.FC = () => {
     { icon: LayoutDashboard, label: 'Overview', path: '/staff/overview' },
     { icon: Users, label: 'Manage Students', path: '/staff/students' },
     { icon: BookOpen, label: 'Manage Questions', path: '/staff/questions' },
+    { icon: BookOpen, label: 'Practice Sets', path: '/staff/practice' },
     { icon: FileText, label: 'Mock Exams', path: '/staff/mock-exams' },
     { icon: DoorOpen, label: 'Mockboard Rooms', path: '/staff/rooms' },
     { icon: BarChart3, label: 'Reports/Analytics', path: '/staff/analytics' },

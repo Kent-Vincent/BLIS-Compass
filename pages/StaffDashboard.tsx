@@ -4,6 +4,7 @@ import StaffSidebar from '../components/StaffSidebar';
 import StaffHeader from '../components/StaffHeader';
 import MockExamsPage from './staff/MockExamsPage';
 import ExamBuilderPage from './staff/ExamBuilderPage';
+import PracticeManager from './staff/PracticeManager';
 import { motion } from 'motion/react';
 import { Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -122,6 +123,7 @@ const StaffDashboard: React.FC = () => {
             <Route path="overview" element={<Overview />} />
             <Route path="students" element={<PlaceholderPage title="Manage Students" />} />
             <Route path="questions" element={<PlaceholderPage title="Manage Questions" />} />
+            <Route path="practice" element={<PracticeManager />} />
             <Route path="mock-exams" element={<MockExamsPage />} />
             <Route path="mock-exams/:id" element={<ExamBuilderPage />} />
             <Route path="rooms" element={<PlaceholderPage title="Mockboard Rooms" />} />

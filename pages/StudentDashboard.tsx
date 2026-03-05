@@ -6,6 +6,7 @@ import { GameCard, MockExam } from '../types';
 import { useAuth } from '../context/AuthContext';
 import MockExamsPage from './student/MockExamsPage';
 import TakeExamPage from './student/TakeExamPage';
+import PracticeSetsTab from './student/PracticeSetsTab';
 import { 
   Home, 
   Gamepad2, 
@@ -14,6 +15,7 @@ import {
   Settings, 
   LogOut, 
   Loader2,
+  BookOpen,
   Flame, 
   Star, 
   Compass,
@@ -50,7 +52,7 @@ const PROGRESS_DATA = [
 
 const StudentDashboard: React.FC = () => {
   const { profile, signOut, loading, signingOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'games' | 'exams'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'games' | 'exams' | 'practice'>('overview');
 
   if (loading || !profile) {
     return (
@@ -99,6 +101,13 @@ const StudentDashboard: React.FC = () => {
           >
             <FileText size={20} />
             <span>Mock Exams</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('practice')}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'practice' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            <BookOpen size={20} />
+            <span>Practice Sets</span>
           </button>
           <div className="pt-6 mt-6 border-t border-slate-100">
              <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-50">
@@ -301,6 +310,10 @@ const StudentDashboard: React.FC = () => {
 
         {activeTab === 'exams' && (
           <MockExamsPage />
+        )}
+
+        {activeTab === 'practice' && (
+          <PracticeSetsTab />
         )}
       </main>
     </div>

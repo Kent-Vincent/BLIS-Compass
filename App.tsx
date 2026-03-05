@@ -10,6 +10,7 @@ import ConfirmEmailPage from './pages/ConfirmEmailPage';
 import EmailVerifiedPage from './pages/EmailVerifiedPage';
 import ResendVerificationPage from './pages/ResendVerificationPage';
 import TakeExamPage from './pages/student/TakeExamPage';
+import PracticePlayer from './pages/student/PracticePlayer';
 import ErrorPage from './pages/ErrorPage';
 import { UserRole } from './types';
 
@@ -78,6 +79,15 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute allowedRoles={[UserRole.STUDENT]}>
             <TakeExamPage />
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
+        path="/student/practice/:subjectId/part/:partNo" 
+        element={
+          <ProtectedRoute allowedRoles={[UserRole.STUDENT]}>
+            <PracticePlayer />
           </ProtectedRoute>
         } 
       />
