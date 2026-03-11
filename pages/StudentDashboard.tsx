@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import GlassCard from '../components/GlassCard';
 import { GameCard, MockExam } from '../types';
@@ -38,6 +39,8 @@ const GAMES: GameCard[] = [
   { id: '2', title: 'DDC Climber', description: 'Scale the mountain by correctly identifying class numbers.', category: 'Classification', icon: 'Mountain', difficulty: 'Beginner' },
   { id: '3', title: 'Reference Quest', description: 'Find the right sources for complex user inquiries.', category: 'Reference Services', icon: 'Search', difficulty: 'Advanced' },
   { id: '4', title: 'Indexing Maze', description: 'Connect related terms using controlled vocabulary.', category: 'Indexing', icon: 'Network', difficulty: 'Intermediate' },
+  { id: '5', title: 'Reference Crush Pro', description: 'Test your reference skills in a fast-paced matching game.', category: 'Reference Services', icon: 'Search', difficulty: 'Advanced' },
+  { id: '6', title: 'Source Detectives', description: 'Investigate and identify the correct sources in challenging scenarios.', category: 'Reference Services', icon: 'Search', difficulty: 'Intermediate' },
 ];
 
 const PROGRESS_DATA = [
@@ -53,6 +56,7 @@ const PROGRESS_DATA = [
 const StudentDashboard: React.FC = () => {
   const { profile, signOut, loading, signingOut } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'games' | 'exams' | 'practice'>('overview');
+  const navigate = useNavigate();
 
   if (loading || !profile) {
     return (
@@ -295,11 +299,22 @@ const StudentDashboard: React.FC = () => {
                    <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider ${
                      game.difficulty === 'Beginner' ? 'bg-emerald-50 text-emerald-600' :
                      game.difficulty === 'Intermediate' ? 'bg-amber-50 text-amber-600' :
-                     'bg-rose-50 text-rose-600'
+                     game.difficulty === 'Advanced' ? 'bg-rose-50 text-rose-600' :
+                     game.difficulty === 'Pro' ? 'bg-blue-50 text-blue-600' :
+                     'bg-slate-50 text-slate-600'
                    }`}>
                      {game.difficulty}
                    </span>
-                   <button className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">
+                   <button
+                     className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100"
+                     onClick={() => {
+                       if (game.title === 'Reference Crush Pro') {
+                         navigate('/game1');
+                       } else if (game.title === 'Source Detectives') {
+                         navigate('/game2');
+                       }
+                     }}
+                   >
                      Play
                    </button>
                 </div>

@@ -12,6 +12,8 @@ import ResendVerificationPage from './pages/ResendVerificationPage';
 import TakeExamPage from './pages/student/TakeExamPage';
 import PracticePlayer from './pages/student/PracticePlayer';
 import ErrorPage from './pages/ErrorPage';
+import Game1 from './pages/student/Game1';
+import Game2 from './pages/student/Game2';
 import { UserRole } from './types';
 
 const ProtectedRoute: React.FC<{ 
@@ -64,6 +66,8 @@ const AppRoutes: React.FC = () => {
       <Route path="/resend-verification" element={<ResendVerificationPage />} />
       <Route path="/verified" element={<EmailVerifiedPage />} />
       <Route path="/error" element={<ErrorPage />} />
+      <Route path="/game1" element={<Game1 />} />
+      <Route path="/game2" element={<Game2 />} />
       
       <Route 
         path="/student/*" 
