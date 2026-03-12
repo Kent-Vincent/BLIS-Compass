@@ -33,7 +33,21 @@ const ProtectedRoute: React.FC<{
   }
 
   if (!profile) {
-    return <Navigate to="/error" replace />;
+    // If we have a session but no profile, it might be loading or timed out
+    // Show a loading state instead of immediately redirecting to error
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mb-4"></div>
+        <p className="text-slate-600 font-medium">Loading your profile...</p>
+        <p className="text-slate-400 text-sm mt-2">If this takes too long, try refreshing the page.</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all"
+        >
+          Refresh Page
+        </button>
+      </div>
+    );
   }
 
   if (allowedRoles && !allowedRoles.includes(profile.role)) {

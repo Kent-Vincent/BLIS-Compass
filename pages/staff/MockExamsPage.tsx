@@ -27,7 +27,7 @@ const MockExamsPage: React.FC = () => {
 
   const fetchExams = async () => {
     try {
-      setLoading(true);
+      if (!loading) setLoading(true);;
       const { data, error } = await supabase
         .from('mock_exams')
         .select('*')

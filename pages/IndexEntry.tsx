@@ -42,7 +42,7 @@ const IndexEntry: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!loading) setLoading(true);;
     setError(null);
 
     try {

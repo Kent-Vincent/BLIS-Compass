@@ -33,35 +33,52 @@ const TakeExamPage: React.FC = () => {
   const [isFinished, setIsFinished] = useState(false);
   const [score, setScore] = useState(0);
 
-  const fetchExamData = useCallback(async () => {
+  const fetchExamData = useCallback(async (retryCount = 0) => {
     try {
-      setLoading(true);
+      if (!loading) setLoading(true);;
       setError(null);
 
-      // 1. Fetch Exam
-      const { data: examData, error: examError } = await supabase
-        .from('mock_exams')
-        .select('*')
-        .eq('id', id)
-        .eq('is_published', true)
-        .single();
+      // 1. Fetch Exam and Items with a timeout
+      const results = await Promise.race([
+        Promise.all([
+          supabase
+            .from('mock_exams')
+            .select('*')
+            .eq('id', id)
+            .eq('is_published', true)
+            .single(),
+          supabase
+            .from('mock_exam_items')
+            .select('*')
+            .eq('exam_id', id)
+            .order('item_no', { ascending: true })
+        ]),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 45000))
+      ]);
 
-      if (examError) throw examError;
-      setExam(examData);
-      setTimeLeft(examData.duration_minutes * 60);
+      const [examRes, itemsRes] = results;
 
-      // 2. Fetch Items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('mock_exam_items')
-        .select('*')
-        .eq('exam_id', id)
-        .order('item_no', { ascending: true });
+      if (examRes.error) throw examRes.error;
+      if (itemsRes.error) throw itemsRes.error;
 
-      if (itemsError) throw itemsError;
-      setItems(itemsData || []);
+      setExam(examRes.data);
+      setTimeLeft(examRes.data.duration_minutes * 60);
+      setItems(itemsRes.data || []);
     } catch (err: any) {
       console.error('Error fetching exam data:', err);
-      setError(err.message || 'Failed to load exam data');
+      
+      // Retry logic for network issues or timeouts
+      if (retryCount < 3) {
+        console.log(`Retrying fetchExamData... (Attempt ${retryCount + 1})`);
+        await new Promise(r => setTimeout(r, 3000));
+        return fetchExamData(retryCount + 1);
+      }
+
+      const msg = err.message === 'Fetch timeout'
+        ? 'The connection is taking longer than expected. Please check your internet and try again.'
+        : (err.message || 'Failed to load exam data. Please check your connection.');
+      
+      setError(msg);
     } finally {
       setLoading(false);
     }

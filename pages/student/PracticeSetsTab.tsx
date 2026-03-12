@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, Lock, CheckCircle2, ChevronRight, Loader2, Trophy } from 'lucide-react';
+import { BookOpen, Lock, CheckCircle2, ChevronRight, Loader2, Trophy, Zap } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
 import { PracticeSubject, PracticeProgress } from '../../types';
 import GlassCard from '../../components/GlassCard';
@@ -15,41 +15,53 @@ const PracticeSetsTab: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, PracticeProgress>>({});
   const [loading, setLoading] = useState(true);
 
+
   useEffect(() => {
-    fetchData();
-  }, [profile]);
+    if (profile?.id) {
+      fetchData();
+    }
+  }, [profile?.id]);
 
-  const fetchData = async () => {
+  const fetchData = async (retryCount = 0) => {
     if (!profile) return;
-    setLoading(true);
+    if (!loading) setLoading(true);;
     try {
-      // Fetch subjects
-      const { data: subData, error: subError } = await supabase
-        .from('practice_subjects')
-        .select('*')
-        .order('name');
+      // Fetch subjects and progress with a timeout
+      const results = await Promise.race([
+        Promise.all([
+          supabase
+            .from('practice_subjects')
+            .select('*')
+            .order('name'),
+          supabase
+            .from('practice_progress')
+            .select('*')
+            .eq('student_id', profile.id)
+        ]),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 45000))
+      ]);
       
-      if (subError) throw subError;
-      setSubjects(subData || []);
-
-      // Fetch progress
-      const { data: progData, error: progError } = await supabase
-        .from('practice_progress')
-        .select('*')
-        .eq('student_id', profile.id);
+      const [subRes, progRes] = results;
       
-      if (progError) throw progError;
+      if (subRes.error) throw subRes.error;
+      if (progRes.error) throw progRes.error;
+      
+      setSubjects(subRes.data || []);
       
       const progMap: Record<string, PracticeProgress> = {};
-      progData?.forEach(p => {
+      progRes.data?.forEach((p: any) => {
         progMap[p.subject_id] = p;
       });
       setProgress(progMap);
-
-      // If progress is missing for some subjects, it will be handled by the RPC when they take a test,
-      // but for UI display we can assume default values.
     } catch (err) {
       console.error('Error fetching practice data:', err);
+      
+      // Retry logic
+      if (retryCount < 3) {
+        console.log(`Retrying fetchData... (Attempt ${retryCount + 1})`);
+        await new Promise(r => setTimeout(r, 3000));
+        return fetchData(retryCount + 1);
+      }
     } finally {
       setLoading(false);
     }
@@ -70,6 +82,14 @@ const PracticeSetsTab: React.FC = () => {
           <h2 className="text-3xl font-bold text-slate-800">Practice Sets</h2>
           <p className="text-slate-500">Master each subject part by part. Score 80% to unlock the next level.</p>
         </div>
+        <button 
+          onClick={() => fetchData()}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-50"
+        >
+          <Zap size={16} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

@@ -171,9 +171,9 @@ const StudentDashboard: React.FC = () => {
                   <h3 className="font-bold text-slate-800 text-lg">Performance Trend</h3>
                   <span className="text-xs text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">+12% from last week</span>
                 </div>
-                <div className="h-40 w-full">
-                   <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={PROGRESS_DATA}>
+                <div className="h-40 w-full min-h-[160px]">
+                   <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+                      <AreaChart data={PROGRESS_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>

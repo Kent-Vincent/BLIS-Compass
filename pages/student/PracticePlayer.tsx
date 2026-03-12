@@ -55,28 +55,40 @@ const PracticePlayer: React.FC = () => {
     }
   }, [subjectId, partNo]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (retryCount = 0) => {
+    if (!loading) setLoading(true);;
     try {
-      // Fetch subject name
-      const { data: subData } = await supabase
-        .from('practice_subjects')
-        .select('name')
-        .eq('id', subjectId)
-        .single();
+      // Fetch subject name and questions with a timeout
+      const results = await Promise.race([
+        Promise.all([
+          supabase
+            .from('practice_subjects')
+            .select('name')
+            .eq('id', subjectId)
+            .single(),
+          supabase.rpc('get_practice_questions', {
+            p_subject_id: subjectId,
+            p_part: parseInt(partNo!)
+          })
+        ]),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 45000))
+      ]);
+
+      const [subRes, questRes] = results;
       
-      if (subData) setSubjectName(subData.name);
-
-      // Fetch questions via RPC
-      const { data, error } = await supabase.rpc('get_practice_questions', {
-        p_subject_id: subjectId,
-        p_part: parseInt(partNo!)
-      });
-
-      if (error) throw error;
-      setQuestions(data || []);
+      if (subRes.data) setSubjectName(subRes.data.name);
+      if (questRes.error) throw questRes.error;
+      
+      setQuestions(questRes.data || []);
     } catch (err) {
       console.error('Error fetching questions:', err);
+      
+      // Retry logic
+      if (retryCount < 3) {
+        console.log(`Retrying fetchData in PracticePlayer... (Attempt ${retryCount + 1})`);
+        await new Promise(r => setTimeout(r, 3000));
+        return fetchData(retryCount + 1);
+      }
     } finally {
       setLoading(false);
     }

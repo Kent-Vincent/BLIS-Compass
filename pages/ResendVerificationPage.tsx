@@ -14,7 +14,7 @@ const ResendVerificationPage: React.FC = () => {
 
   const handleResend = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!loading) setLoading(true);;
     setError(null);
 
     try {

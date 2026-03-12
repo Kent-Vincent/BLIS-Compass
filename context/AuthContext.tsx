@@ -22,15 +22,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [profile, setProfile] = useState<User | null>(null);
+  const [profile, _setProfile] = useState<User | null>(null);
   const profileRef = React.useRef<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const isFetchingRef = React.useRef(false);
 
-  // Keep ref in sync with state
-  useEffect(() => {
-    profileRef.current = profile;
-  }, [profile]);
+  // Helper to keep ref and state in sync
+  const setProfile = (p: User | null) => {
+    _setProfile(p);
+    profileRef.current = p;
+  };
 
   const fetchProfile = async (userId: string, email: string, metadata?: any, retryCount = 0): Promise<User | null> => {
     try {
@@ -42,18 +44,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .maybeSingle();
 
       if (error) {
-        // If it's a timeout or lock error, retry once
-        if (retryCount < 2 && (error.message.includes('timeout') || error.message.includes('lock'))) {
+        // If it's a timeout, lock, or network error, retry once
+        const isRetryable = error.message.includes('timeout') || 
+                           error.message.includes('lock') || 
+                           error.message.includes('Failed to fetch');
+                           
+        if (retryCount < 2 && isRetryable) {
           console.warn(`Retrying fetchProfile due to: ${error.message}`);
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 1500));
           return fetchProfile(userId, email, metadata, retryCount + 1);
         }
         console.error('Error fetching profile:', error);
+        
+        // If we failed to fetch due to network, try to return cached version as a fallback
+        const cached = localStorage.getItem(`lis-profile-${userId}`);
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch (e) {}
+        }
+        
         return null;
       }
 
+      let profileData: User | null = null;
+
       if (data) {
-        return {
+        profileData = {
           id: data.id,
           name: data.full_name || 'User',
           email: email,
@@ -62,50 +79,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           exp: data.exp || 0,
           streak: data.streak || 0
         };
+      } else {
+        // 2. Profile missing - attempt auto-repair using upsert
+        console.log('Profile missing for user, attempting auto-repair (upsert)...');
+        const fullName = metadata?.full_name || metadata?.name || email.split('@')[0] || 'User';
+        
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            full_name: fullName,
+            role: UserRole.STUDENT,
+            level: 1,
+            exp: 0,
+            streak: 0
+          }, { onConflict: 'id' })
+          .select('*')
+          .maybeSingle();
+
+        if (createError) {
+          console.error('Failed to auto-repair profile:', createError.message);
+        } else if (newProfile) {
+          profileData = {
+            id: newProfile.id,
+            name: newProfile.full_name || fullName,
+            email: email,
+            role: newProfile.role as UserRole,
+            level: newProfile.level || 1,
+            exp: newProfile.exp || 0,
+            streak: newProfile.streak || 0
+          };
+        }
       }
 
-      // 2. Profile missing - attempt auto-repair using upsert
-      // Upsert is better for "ensure exists" logic
-      console.log('Profile missing for user, attempting auto-repair (upsert)...');
-      const fullName = metadata?.full_name || metadata?.name || email.split('@')[0] || 'User';
-      
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: userId,
-          full_name: fullName,
-          role: UserRole.STUDENT,
-          level: 1,
-          exp: 0,
-          streak: 0
-        }, { onConflict: 'id' })
-        .select('*')
-        .maybeSingle();
-
-      if (createError) {
-        console.error('Failed to auto-repair profile. Error details:', {
-          code: createError.code,
-          message: createError.message,
-          details: createError.details,
-          hint: createError.hint
-        });
-        return null;
+      // Cache the profile if found
+      if (profileData) {
+        localStorage.setItem(`lis-profile-${userId}`, JSON.stringify(profileData));
       }
 
-      if (newProfile) {
-        console.log('Profile repaired successfully:', newProfile);
-        return {
-          id: newProfile.id,
-          name: newProfile.full_name || fullName,
-          email: email,
-          role: newProfile.role as UserRole,
-          level: newProfile.level || 1,
-          exp: newProfile.exp || 0,
-          streak: newProfile.streak || 0
-        };
-      }
-
-      return null;
+      return profileData;
     } catch (err) {
       console.error('Unexpected error in fetchProfile:', err);
       return null;
@@ -172,19 +184,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          // Handle specific refresh token or network errors by clearing everything
+          // Handle specific refresh token or invalid grant errors by clearing everything
+          // BUT DO NOT clear on "Failed to fetch" - that's just a network issue!
           if (
             sessionError.message.includes('Refresh Token Not Found') || 
-            sessionError.message.includes('Failed to fetch') ||
             sessionError.message.includes('invalid_grant')
           ) {
-            console.warn('Stale or unreachable session detected, clearing auth data:', sessionError.message);
+            console.warn('Stale session detected, clearing auth data:', sessionError.message);
             
-            // Attempt to sign out to clear local storage, but catch errors if network is down
             try {
               await supabase.auth.signOut();
             } catch (e) {
-              // If signOut fails (e.g. network down), manually clear local storage as a fallback
               localStorage.removeItem('lis-compass-auth-token');
             }
 
@@ -195,7 +205,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
             return;
           }
-          throw sessionError;
+          
+          // If it's just a network error, we keep the current state (which might be null or cached)
+          // and don't throw, just log it.
+          if (sessionError.message.includes('Failed to fetch')) {
+            console.warn('Network unreachable during auth init, will retry later');
+          } else {
+            throw sessionError;
+          }
         }
 
         if (!mounted) return;
@@ -204,12 +221,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAuthUser(initialSession?.user ?? null);
         
         if (initialSession) {
-          const p = await fetchProfile(
-            initialSession.user.id, 
-            initialSession.user.email || '',
-            initialSession.user.user_metadata
-          );
-          if (mounted) setProfile(p);
+          // Try to get from cache first for immediate UI
+          const cached = localStorage.getItem(`lis-profile-${initialSession.user.id}`);
+          if (cached) {
+            try {
+              setProfile(JSON.parse(cached));
+            } catch (e) {
+              console.error('Failed to parse cached profile');
+            }
+          }
+
+          const p = await Promise.race([
+            fetchProfile(
+              initialSession.user.id, 
+              initialSession.user.email || '',
+              initialSession.user.user_metadata
+            ),
+            new Promise<undefined>((resolve) => setTimeout(() => {
+              console.warn('Initial profile fetch timed out');
+              resolve(undefined);
+            }, 45000))
+          ]);
+          
+          if (mounted && p !== undefined) {
+            setProfile(p);
+          }
         }
       } catch (err) {
         console.error('Auth initialization failed:', err);
@@ -224,36 +260,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!mounted) return;
       
       try {
-        // Only show full-page loading if we don't have a profile yet
-        // and we are actually signing in. This prevents the Alt-Tab flicker.
-        if (currentSession && (event === 'SIGNED_IN' || event === 'USER_UPDATED') && !profileRef.current) {
-          setLoading(true);
-        }
-
         setSession(currentSession);
         setAuthUser(currentSession?.user ?? null);
-        
+
         if (currentSession) {
-          // Add a safety timeout to profile fetching to prevent hanging the UI
-          const p = await Promise.race([
-            fetchProfile(
-              currentSession.user.id, 
-              currentSession.user.email || '',
-              currentSession.user.user_metadata
-            ),
-            new Promise<null>((resolve) => setTimeout(() => {
-              console.warn('Profile fetch timed out in onAuthStateChange');
-              resolve(null);
-            }, 5000))
-          ]);
-          
-          if (mounted) setProfile(p);
+          // 1. Check for cached profile if we don't have one in memory
+          const cachedProfile = localStorage.getItem(`lis-profile-${currentSession.user.id}`);
+          if (!profileRef.current && cachedProfile) {
+            try {
+              const p = JSON.parse(cachedProfile);
+              setProfile(p);
+              // If we have a cached profile, we can stop the full-page loading immediately
+              if (mounted) setLoading(false);
+            } catch (e) {}
+          }
+
+          // 2. Decide if we need to fetch a fresh profile
+          const shouldFetch = (!profileRef.current || event === 'SIGNED_IN' || event === 'USER_UPDATED') && !isFetchingRef.current;
+
+          if (shouldFetch) {
+            isFetchingRef.current = true;
+            
+            // Fetch fresh profile data
+            const p = await Promise.race([
+              fetchProfile(
+                currentSession.user.id, 
+                currentSession.user.email || '',
+                currentSession.user.user_metadata
+              ),
+              new Promise<undefined>((resolve) => setTimeout(() => {
+                // Silent timeout if we already have a profile (background refresh)
+                if (!profileRef.current) {
+                  console.warn('Initial profile fetch timed out');
+                }
+                resolve(undefined);
+              }, 45000))
+            ]);
+            
+            if (mounted && p !== undefined) {
+              setProfile(p);
+              // Ensure loading is false once we have a fresh profile
+              setLoading(false);
+            }
+            isFetchingRef.current = false;
+          } else {
+            // If we didn't fetch but have a session, ensure loading is false
+            if (mounted) setLoading(false);
+          }
         } else {
-          if (mounted) setProfile(null);
+          // No session
+          if (mounted) {
+            setProfile(null);
+            setLoading(false);
+          }
         }
-      } catch (err) {
-        console.error('Error in onAuthStateChange:', err);
-      } finally {
+      } catch (err: any) {
+        // If we get a "Failed to fetch" here, it's a network error
+        if (err?.message?.includes('Failed to fetch')) {
+          console.warn('Network error during auth change, relying on cache');
+          // We don't need to do much else as the session/user are already set
+          // and the profile fallback logic above handles the rest
+        } else {
+          console.error('Error in onAuthStateChange:', err);
+        }
+        isFetchingRef.current = false;
         if (mounted) setLoading(false);
       }
     });
@@ -277,17 +347,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ]);
     } catch (err) {
       console.error('Error or timeout during sign out:', err);
-      // Manually clear local storage as a fallback if the Supabase call fails or times out
-      localStorage.removeItem('lis-compass-auth-token');
     } finally {
+      // Clear all cached data
+      if (authUser) {
+        localStorage.removeItem(`lis-profile-${authUser.id}`);
+      }
+      localStorage.removeItem('lis-compass-auth-token');
+
       // Force clear local state regardless of whether the server call succeeded
       setSession(null);
       setAuthUser(null);
       setProfile(null);
       setSigningOut(false);
-      
-      // Optional: Redirect to home or reload to ensure a clean state
-      // window.location.href = '/'; 
     }
   };
 

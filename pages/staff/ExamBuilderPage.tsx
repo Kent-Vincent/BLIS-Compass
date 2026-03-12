@@ -36,7 +36,7 @@ const ExamBuilderPage: React.FC = () => {
 
   const fetchExamData = async () => {
     try {
-      setLoading(true);
+      if (!loading) setLoading(true);;
       setError(null);
 
       // 1. Fetch Exam

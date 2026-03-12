@@ -64,20 +64,38 @@ const MockExamsPage: React.FC = () => {
     };
   }, []);
 
-  const fetchExams = async () => {
+  const fetchExams = async (retryCount = 0) => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('mock_exams')
-        .select('*')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
+      if (!loading) setLoading(true);;
+      setError(null);
+
+      // Add a timeout to the fetch to prevent hanging forever
+      const { data, error } = await Promise.race([
+        supabase
+          .from('mock_exams')
+          .select('*')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false }),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 45000))
+      ]);
 
       if (error) throw error;
       setExams(data || []);
     } catch (err: any) {
       console.error('Error fetching exams:', err);
-      setError('Failed to load mock exams. Please try again later.');
+      
+      // Retry logic for network issues or timeouts
+      if (retryCount < 3) {
+        console.log(`Retrying fetchExams... (Attempt ${retryCount + 1})`);
+        await new Promise(r => setTimeout(r, 3000));
+        return fetchExams(retryCount + 1);
+      }
+
+      const errorMessage = err.message === 'Fetch timeout' 
+        ? 'The connection is taking longer than expected. Please check your internet and try again.'
+        : 'Failed to load mock exams. Please check your connection and try again.';
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -96,15 +114,25 @@ const MockExamsPage: React.FC = () => {
           <p className="text-slate-500">Practice with real-time updated exam simulations created by your instructors.</p>
         </div>
         
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search exams..."
-            className="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => fetchExams()}
+            disabled={loading}
+            className="p-3 text-slate-500 hover:bg-white hover:text-blue-600 rounded-2xl transition-all border border-transparent hover:border-slate-200 disabled:opacity-50"
+            title="Refresh exams"
+          >
+            <Zap size={20} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search exams..."
+              className="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
