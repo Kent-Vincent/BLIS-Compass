@@ -164,7 +164,7 @@ const StudentDashboard: React.FC = () => {
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Stats Area */}
-            <div className="lg:col-span-2 space-y-8">
+            <div className="lg:col-span-2 space-y-8 min-w-0">
               {/* Progress Summary */}
                       <GlassCard className="border-white/60">
                 <div className="flex items-center justify-between mb-6">
