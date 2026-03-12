@@ -166,28 +166,47 @@ const StudentDashboard: React.FC = () => {
             {/* Main Stats Area */}
             <div className="lg:col-span-2 space-y-8">
               {/* Progress Summary */}
-              <GlassCard className="h-64 border-white/60">
+                      <GlassCard className="border-white/60">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="font-bold text-slate-800 text-lg">Performance Trend</h3>
-                  <span className="text-xs text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">+12% from last week</span>
+                  <span className="text-xs text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">
+                    +12% from last week
+                  </span>
                 </div>
-                <div className="h-40 w-full min-h-[160px]">
-                   <ResponsiveContainer width="100%" height="100%" minHeight={160}>
-                      <AreaChart data={PROGRESS_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                        <Tooltip 
-                           contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                        />
-                        <Area type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
-                      </AreaChart>
-                   </ResponsiveContainer>
+
+                <div className="w-full min-w-0 min-h-[160px]">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={PROGRESS_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="day"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: '16px',
+                          border: 'none',
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="score"
+                        stroke="#3b82f6"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#colorScore)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </GlassCard>
 

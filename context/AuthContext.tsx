@@ -164,20 +164,96 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const refreshProfile = async () => {
+     const refreshProfile = async () => {
     const { data: { session: currentSession } } = await supabase.auth.getSession();
-    if (currentSession) {
-      const p = await fetchProfile(
-        currentSession.user.id, 
+
+    if (!currentSession) {
+      setProfile(null);
+      return;
+    }
+
+    const p = await fetchProfile(
+      currentSession.user.id,
+      currentSession.user.email || '',
+      currentSession.user.user_metadata
+    );
+
+    setProfile(p);
+  };
+
+  const revalidateSessionAndProfile = async () => {
+    if (isFetchingRef.current) return;
+
+    try {
+      isFetchingRef.current = true;
+
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        const isFatal =
+          error.message.includes('Refresh Token Not Found') ||
+          error.message.includes('invalid_grant');
+
+        if (isFatal) {
+          console.warn('Fatal session error during revalidation:', error.message);
+
+          try {
+            await supabase.auth.signOut();
+          } catch (_) {}
+
+          setSession(null);
+          setAuthUser(null);
+          setProfile(null);
+          return;
+        }
+
+        if (error.message.includes('Failed to fetch')) {
+          console.warn('Network error during session revalidation, keeping current state');
+          return;
+        }
+
+        console.error('Session revalidation error:', error);
+        return;
+      }
+
+      setSession(currentSession);
+      setAuthUser(currentSession?.user ?? null);
+
+      if (!currentSession) {
+        setProfile(null);
+        return;
+      }
+
+      const freshProfile = await fetchProfile(
+        currentSession.user.id,
         currentSession.user.email || '',
         currentSession.user.user_metadata
       );
-      setProfile(p);
+
+      setProfile(freshProfile);
+    } catch (err) {
+      console.error('Unexpected error during session/profile revalidation:', err);
+    } finally {
+      isFetchingRef.current = false;
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     let mounted = true;
+
+     const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        await revalidateSessionAndProfile();
+      }
+    };
+
+    const handleWindowFocus = async () => {
+      await revalidateSessionAndProfile();
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const initAuth = async () => {
       try {
@@ -331,6 +407,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
