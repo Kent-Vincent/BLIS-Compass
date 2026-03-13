@@ -15,30 +15,33 @@ const PracticeSetsTab: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, PracticeProgress>>({});
   const [loading, setLoading] = useState(true);
 
-
   useEffect(() => {
-    if (profile?.id) {
-      fetchData();
-    }
-  }, [profile?.id]);
+    fetchData();
+  }, [profile]);
 
   const fetchData = async (retryCount = 0) => {
     if (!profile) return;
-    if (!loading) setLoading(true);;
+    setLoading(true);
     try {
-      // Fetch subjects and progress with a timeout
+      // Wrap the entire fetch process in a timeout
       const results = await Promise.race([
-        Promise.all([
-          supabase
-            .from('practice_subjects')
-            .select('*')
-            .order('name'),
-          supabase
-            .from('practice_progress')
-            .select('*')
-            .eq('student_id', profile.id)
-        ]),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 45000))
+        (async () => {
+          // Warm up session
+          await supabase.auth.getSession();
+
+          // Fetch subjects and progress
+          return await Promise.all([
+            supabase
+              .from('practice_subjects')
+              .select('*')
+              .order('name'),
+            supabase
+              .from('practice_progress')
+              .select('*')
+              .eq('student_id', profile.id)
+          ]);
+        })(),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 20000))
       ]);
       
       const [subRes, progRes] = results;
@@ -61,6 +64,11 @@ const PracticeSetsTab: React.FC = () => {
         console.log(`Retrying fetchData... (Attempt ${retryCount + 1})`);
         await new Promise(r => setTimeout(r, 3000));
         return fetchData(retryCount + 1);
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Your session has expired. Please refresh the page.');
       }
     } finally {
       setLoading(false);

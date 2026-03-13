@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2 } from 'lucide-react';
+import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
-import { MockExam } from '../../types';
+import { MockExam, ExamType } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import GlassCard from '../../components/GlassCard';
 import { useNavigate } from 'react-router-dom';
@@ -16,8 +16,9 @@ const MockExamsPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
-    duration_minutes: 60,
-    total_items: 50,
+    duration_minutes: 600,
+    total_items: 600,
+    exam_type: ExamType.MOCK_BOARD,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -27,7 +28,7 @@ const MockExamsPage: React.FC = () => {
 
   const fetchExams = async () => {
     try {
-      if (!loading) setLoading(true);;
+      setLoading(true);
       const { data, error } = await supabase
         .from('mock_exams')
         .select('*')
@@ -63,7 +64,7 @@ const MockExamsPage: React.FC = () => {
       if (error) throw error;
       
       setIsModalOpen(false);
-      setFormData({ title: '', duration_minutes: 60, total_items: 50 });
+      setFormData({ title: '', duration_minutes: 600, total_items: 600, exam_type: ExamType.MOCK_BOARD });
       
       // Navigate to builder
       if (data) {
@@ -150,8 +151,16 @@ const MockExamsPage: React.FC = () => {
             >
               <GlassCard className="p-6 border-slate-200 h-full flex flex-col">
                 <div className="flex justify-between items-start mb-4">
-                  <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${exam.is_published ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-                    {exam.is_published ? 'Published' : 'Draft'}
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${exam.is_published ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {exam.is_published ? 'Published' : 'Draft'}
+                    </div>
+                    {exam.exam_type === ExamType.MOCK_BOARD && (
+                      <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
+                        <ShieldCheck size={10} />
+                        Mock Board
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button 
@@ -212,8 +221,17 @@ const MockExamsPage: React.FC = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl"
           >
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">New Mock Exam</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">New Mock Board Exam</h2>
             <form onSubmit={handleCreateExam} className="space-y-5">
+              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 mb-6">
+                <div className="flex items-center gap-2 text-indigo-600 font-bold mb-1">
+                  <ShieldCheck size={18} />
+                  <span>Official Mock Board Format</span>
+                </div>
+                <p className="text-xs text-indigo-500 font-medium">
+                  This exam is automatically configured with 600 questions and a 600-minute time limit.
+                </p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Exam Title</label>
                 <input 
@@ -232,7 +250,8 @@ const MockExamsPage: React.FC = () => {
                     type="number" 
                     required
                     min="1"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    disabled={formData.exam_type === ExamType.MOCK_BOARD}
+                    className={`w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${formData.exam_type === ExamType.MOCK_BOARD ? 'bg-slate-50 text-slate-400' : ''}`}
                     value={formData.duration_minutes}
                     onChange={e => setFormData({...formData, duration_minutes: parseInt(e.target.value)})}
                   />
@@ -243,7 +262,8 @@ const MockExamsPage: React.FC = () => {
                     type="number" 
                     required
                     min="1"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    disabled={formData.exam_type === ExamType.MOCK_BOARD}
+                    className={`w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${formData.exam_type === ExamType.MOCK_BOARD ? 'bg-slate-50 text-slate-400' : ''}`}
                     value={formData.total_items}
                     onChange={e => setFormData({...formData, total_items: parseInt(e.target.value)})}
                   />

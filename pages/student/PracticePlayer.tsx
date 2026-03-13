@@ -56,22 +56,28 @@ const PracticePlayer: React.FC = () => {
   }, [subjectId, partNo]);
 
   const fetchData = async (retryCount = 0) => {
-    if (!loading) setLoading(true);;
+    setLoading(true);
     try {
-      // Fetch subject name and questions with a timeout
+      // Wrap the entire fetch process in a timeout
       const results = await Promise.race([
-        Promise.all([
-          supabase
-            .from('practice_subjects')
-            .select('name')
-            .eq('id', subjectId)
-            .single(),
-          supabase.rpc('get_practice_questions', {
-            p_subject_id: subjectId,
-            p_part: parseInt(partNo!)
-          })
-        ]),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 45000))
+        (async () => {
+          // Warm up session
+          await supabase.auth.getSession();
+
+          // Fetch subject name and questions
+          return await Promise.all([
+            supabase
+              .from('practice_subjects')
+              .select('name')
+              .eq('id', subjectId)
+              .single(),
+            supabase.rpc('get_practice_questions', {
+              p_subject_id: subjectId,
+              p_part: parseInt(partNo!)
+            })
+          ]);
+        })(),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 20000))
       ]);
 
       const [subRes, questRes] = results;

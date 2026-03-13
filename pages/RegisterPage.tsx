@@ -21,7 +21,7 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    if (!loading) setLoading(true);;
+    setLoading(true);
     setError(null);
 
     try {

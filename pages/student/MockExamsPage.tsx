@@ -25,58 +25,96 @@ const MockExamsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    fetchExams();
+    let channel: any = null;
 
-    // Set up Realtime subscription
-    const channel = supabase
-      .channel('mock_exams_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'mock_exams',
-          filter: 'is_published=eq.true'
-        },
-        (payload) => {
-          console.log('Realtime update received:', payload);
-          
-          if (payload.eventType === 'INSERT') {
-            const newExam = payload.new as MockExam;
-            setExams(prev => [newExam, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedExam = payload.new as MockExam;
-            if (updatedExam.is_published) {
-              setExams(prev => prev.map(e => e.id === updatedExam.id ? updatedExam : e));
-            } else {
-              // If it was unpublished, remove it
-              setExams(prev => prev.filter(e => e.id !== updatedExam.id));
+    const subscribe = async () => {
+      // Ensure we have a valid session before subscribing
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+
+      channel = supabase
+        .channel('mock_exams_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'mock_exams',
+            filter: 'is_published=eq.true'
+          },
+          (payload) => {
+            console.log('Realtime update received:', payload);
+            
+            if (payload.eventType === 'INSERT') {
+              const newExam = payload.new as MockExam;
+              setExams(prev => [newExam, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+              const updatedExam = payload.new as MockExam;
+              if (updatedExam.is_published) {
+                setExams(prev => prev.map(e => e.id === updatedExam.id ? updatedExam : e));
+              } else {
+                // If it was unpublished, remove it
+                setExams(prev => prev.filter(e => e.id !== updatedExam.id));
+              }
+            } else if (payload.eventType === 'DELETE') {
+              setExams(prev => prev.filter(e => e.id !== payload.old.id));
             }
-          } else if (payload.eventType === 'DELETE') {
-            setExams(prev => prev.filter(e => e.id !== payload.old.id));
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe((status) => {
+          console.log('Realtime status:', status);
+          if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            // Attempt to re-subscribe after a delay if it closed unexpectedly
+            setTimeout(subscribe, 5000);
+          }
+        });
+    };
+
+    fetchExams();
+    subscribe();
+
+    // Handle visibility change to re-sync if needed
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Tab visible, re-syncing exams and realtime...');
+        fetchExams();
+        subscribe();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
   const fetchExams = async (retryCount = 0) => {
     try {
-      if (!loading) setLoading(true);;
+      setLoading(true);
       setError(null);
 
-      // Add a timeout to the fetch to prevent hanging forever
+      // Wrap the entire fetch process (session check + data fetch) in a timeout
       const { data, error } = await Promise.race([
-        supabase
-          .from('mock_exams')
-          .select('*')
-          .eq('is_published', true)
-          .order('created_at', { ascending: false }),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 45000))
+        (async () => {
+          // Warm up the session
+          await supabase.auth.getSession();
+          
+          // Fetch data
+          return await supabase
+            .from('mock_exams')
+            .select('*')
+            .eq('is_published', true)
+            .order('created_at', { ascending: false });
+        })(),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 20000))
       ]);
 
       if (error) throw error;
@@ -89,6 +127,12 @@ const MockExamsPage: React.FC = () => {
         console.log(`Retrying fetchExams... (Attempt ${retryCount + 1})`);
         await new Promise(r => setTimeout(r, 3000));
         return fetchExams(retryCount + 1);
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Your session has expired. Please refresh the page to log in again.');
+        return;
       }
 
       const errorMessage = err.message === 'Fetch timeout' 

@@ -24,6 +24,11 @@ export interface GameCard {
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
 }
 
+export enum ExamType {
+  REGULAR = 'regular',
+  MOCK_BOARD = 'mock-board'
+}
+
 export interface MockExam {
   id: string;
   title: string;
@@ -32,6 +37,7 @@ export interface MockExam {
   created_by: string;
   is_published: boolean;
   created_at: string;
+  exam_type: ExamType;
 }
 
 export interface MockExamItem {
@@ -44,7 +50,23 @@ export interface MockExamItem {
   choice_c: string;
   choice_d: string;
   correct_answer: string;
+  subject_id?: string;
   created_at: string;
+}
+
+export interface MockExamAttempt {
+  id: string;
+  student_id: string;
+  exam_id: string;
+  score: number;
+  total_items: number;
+  answers: Record<string, string>;
+  flagged: Record<string, boolean>;
+  time_left_seconds: number;
+  current_index: number;
+  is_submitted: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PracticeSubject {

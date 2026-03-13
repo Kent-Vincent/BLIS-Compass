@@ -12,10 +12,11 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
-  FileText
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
-import { MockExam, MockExamItem } from '../../types';
+import { MockExam, MockExamItem, ExamType, PracticeSubject } from '../../types';
 import GlassCard from '../../components/GlassCard';
 
 const ExamBuilderPage: React.FC = () => {
@@ -28,15 +29,23 @@ const ExamBuilderPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const [subjects, setSubjects] = useState<PracticeSubject[]>([]);
+
   useEffect(() => {
+    fetchSubjects();
     if (id) {
       fetchExamData();
     }
   }, [id]);
 
+  const fetchSubjects = async () => {
+    const { data } = await supabase.from('practice_subjects').select('*').order('name');
+    setSubjects(data || []);
+  };
+
   const fetchExamData = async () => {
     try {
-      if (!loading) setLoading(true);;
+      setLoading(true);
       setError(null);
 
       // 1. Fetch Exam
@@ -119,6 +128,12 @@ const ExamBuilderPage: React.FC = () => {
       }
 
       // 3. Update total_items in mock_exams
+      const isMockBoard = exam.exam_type === ExamType.MOCK_BOARD;
+      
+      if (isMockBoard && items.length !== 600) {
+        throw new Error('Mock Board Exams must have exactly 600 questions before saving.');
+      }
+
       const { error: updateError } = await supabase
         .from('mock_exams')
         .update({ total_items: items.length })
@@ -165,8 +180,19 @@ const ExamBuilderPage: React.FC = () => {
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{exam?.title}</h1>
-            <p className="text-sm text-slate-500">Exam Builder • {items.length} Questions</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-slate-800">{exam?.title}</h1>
+              {exam?.exam_type === ExamType.MOCK_BOARD && (
+                <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
+                  <ShieldCheck size={10} />
+                  Mock Board
+                </div>
+              )}
+            </div>
+            <p className={`text-sm font-bold ${exam?.exam_type === ExamType.MOCK_BOARD && items.length !== 600 ? 'text-red-500' : 'text-slate-500'}`}>
+              Exam Builder • {items.length} / {exam?.exam_type === ExamType.MOCK_BOARD ? '600' : items.length} Questions
+              {exam?.exam_type === ExamType.MOCK_BOARD && items.length !== 600 && ' (Must be 600)'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -239,6 +265,20 @@ const ExamBuilderPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Subject / Category</label>
+                    <select 
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
+                      value={item.subject_id || ''}
+                      onChange={e => handleUpdateItem(index, { subject_id: e.target.value })}
+                    >
+                      <option value="">Select Subject (Optional)</option>
+                      {subjects.map(sub => (
+                        <option key={sub.id} value={sub.id}>{sub.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Question Text</label>
                     <textarea 

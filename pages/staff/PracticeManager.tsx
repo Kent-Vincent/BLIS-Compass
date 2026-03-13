@@ -60,7 +60,7 @@ const PracticeManager: React.FC = () => {
   };
 
   const fetchQuestions = async () => {
-    if (!loading) setLoading(true);;
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('practice_questions')
