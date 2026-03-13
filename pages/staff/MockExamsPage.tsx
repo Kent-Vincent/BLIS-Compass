@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
@@ -214,8 +215,8 @@ const MockExamsPage: React.FC = () => {
       )}
 
       {/* Create Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-6">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -288,7 +289,8 @@ const MockExamsPage: React.FC = () => {
               </div>
             </form>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
