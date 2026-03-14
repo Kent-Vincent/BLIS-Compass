@@ -18,7 +18,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
-import { MockExam, MockExamItem, ExamType, MockExamAttempt, PracticeSubject } from '../../types';
+import { MockExam, MockExamItem, MockExamAttempt, PracticeSubject } from '../../types';
 import GlassCard from '../../components/GlassCard';
 
 const TakeExamPage: React.FC = () => {
@@ -349,10 +349,9 @@ const TakeExamPage: React.FC = () => {
   }
 
   const currentItem = items[currentIndex];
-  const isMockBoard = exam?.exam_type === ExamType.MOCK_BOARD;
 
   return (
-    <div className={`${isMockBoard ? 'max-w-[1600px]' : 'max-w-4xl'} mx-auto space-y-8 pb-20`}>
+    <div className="max-w-[1600px] mx-auto space-y-8 pb-20">
       {/* Header */}
       <div className="flex justify-between items-center sticky top-0 bg-slate-50/90 backdrop-blur-md z-50 py-4 -mx-4 px-4 border-b border-slate-200/50">
         <div className="flex items-center gap-4">
@@ -365,33 +364,29 @@ const TakeExamPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-slate-800 line-clamp-1">
-                {isMockBoard ? 'Mock Board Examination' : exam?.title}
+                Mock Board Examination
               </h1>
-              {isMockBoard && (
-                <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
-                  <ShieldCheck size={10} />
-                  Official Format
-                </div>
-              )}
+              <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
+                <ShieldCheck size={10} />
+                Official Format
+              </div>
             </div>
             <div className="flex items-center gap-3 text-xs font-bold text-slate-400 uppercase tracking-widest">
               <span>Question {currentIndex + 1} of {items.length}</span>
-              {isMockBoard && exam && <span className="text-slate-300">|</span>}
-              {isMockBoard && exam && <span className="text-slate-500">{exam.title}</span>}
+              {exam && <span className="text-slate-300">|</span>}
+              {exam && <span className="text-slate-500">{exam.title}</span>}
             </div>
           </div>
         </div>
         
         <div className="flex items-center gap-4">
-          {isMockBoard && (
-            <button 
-              onClick={() => setShowNav(!showNav)}
-              className={`p-3 rounded-xl transition-all ${showNav ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
-              title="Toggle Navigation Grid"
-            >
-              <LayoutGrid size={20} />
-            </button>
-          )}
+          <button 
+            onClick={() => setShowNav(!showNav)}
+            className={`p-3 rounded-xl transition-all ${showNav ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
+            title="Toggle Navigation Grid"
+          >
+            <LayoutGrid size={20} />
+          </button>
           <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-mono font-bold text-xl shadow-lg border-2 ${timeLeft < 300 ? 'bg-red-50 text-red-600 border-red-100 animate-pulse' : 'bg-white text-slate-800 border-white'}`}>
             <Clock size={20} />
             {formatTime(timeLeft)}
@@ -399,7 +394,7 @@ const TakeExamPage: React.FC = () => {
         </div>
       </div>
 
-      <div className={`flex flex-col ${isMockBoard ? 'lg:flex-row' : ''} gap-8`}>
+      <div className="flex flex-col lg:flex-row gap-8">
         {/* Main Content */}
         <div className="flex-1 space-y-8">
           {/* Progress Bar */}
@@ -506,7 +501,7 @@ const TakeExamPage: React.FC = () => {
         </div>
 
         {/* Sidebar Navigation Grid */}
-        {isMockBoard && showNav && (
+        {showNav && (
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -589,36 +584,6 @@ const TakeExamPage: React.FC = () => {
           </motion.div>
         )}
       </div>
-
-      {/* Question Grid (Quick Jump) for non-mock board */}
-      {!isMockBoard && (
-        <div className="pt-12 border-t border-slate-200">
-          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 text-center">Question Overview</h4>
-          <div className="flex flex-wrap justify-center gap-3">
-            {items.map((item, idx) => {
-              const isFlagged = !!flagged[item.id];
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs transition-all relative ${
-                    currentIndex === idx 
-                      ? 'bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-100' 
-                      : answers[item.id] 
-                        ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' 
-                        : 'bg-white text-slate-400 border border-slate-200 hover:border-indigo-300'
-                  } ${isFlagged ? 'border-orange-500 border-2' : ''}`}
-                >
-                  {idx + 1}
-                  {isFlagged && (
-                    <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white shadow-sm" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

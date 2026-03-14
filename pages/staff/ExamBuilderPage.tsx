@@ -16,7 +16,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
-import { MockExam, MockExamItem, ExamType, PracticeSubject } from '../../types';
+import { MockExam, MockExamItem, PracticeSubject } from '../../types';
 import GlassCard from '../../components/GlassCard';
 
 const ExamBuilderPage: React.FC = () => {
@@ -128,9 +128,7 @@ const ExamBuilderPage: React.FC = () => {
       }
 
       // 3. Update total_items in mock_exams
-      const isMockBoard = exam.exam_type === ExamType.MOCK_BOARD;
-      
-      if (isMockBoard && items.length !== 600) {
+      if (items.length !== 600) {
         throw new Error('Mock Board Exams must have exactly 600 questions before saving.');
       }
 
@@ -182,16 +180,14 @@ const ExamBuilderPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-800">{exam?.title}</h1>
-              {exam?.exam_type === ExamType.MOCK_BOARD && (
-                <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
-                  <ShieldCheck size={10} />
-                  Mock Board
-                </div>
-              )}
+              <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
+                <ShieldCheck size={10} />
+                Mock Board
+              </div>
             </div>
-            <p className={`text-sm font-bold ${exam?.exam_type === ExamType.MOCK_BOARD && items.length !== 600 ? 'text-red-500' : 'text-slate-500'}`}>
-              Exam Builder • {items.length} / {exam?.exam_type === ExamType.MOCK_BOARD ? '600' : items.length} Questions
-              {exam?.exam_type === ExamType.MOCK_BOARD && items.length !== 600 && ' (Must be 600)'}
+            <p className={`text-sm font-bold ${items.length !== 600 ? 'text-red-500' : 'text-slate-500'}`}>
+              Exam Builder • {items.length} / 600 Questions
+              {items.length !== 600 && ' (Must be 600)'}
             </p>
           </div>
         </div>

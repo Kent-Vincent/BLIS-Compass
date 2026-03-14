@@ -24,11 +24,6 @@ export interface GameCard {
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
 }
 
-export enum ExamType {
-  REGULAR = 'regular',
-  MOCK_BOARD = 'mock-board'
-}
-
 export interface MockExam {
   id: string;
   title: string;
@@ -37,7 +32,6 @@ export interface MockExam {
   created_by: string;
   is_published: boolean;
   created_at: string;
-  exam_type: ExamType;
 }
 
 export interface MockExamItem {

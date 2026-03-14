@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
-import { MockExam, ExamType } from '../../types';
+import { MockExam } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import GlassCard from '../../components/GlassCard';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +19,6 @@ const MockExamsPage: React.FC = () => {
     title: '',
     duration_minutes: 600,
     total_items: 600,
-    exam_type: ExamType.MOCK_BOARD,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,15 +64,15 @@ const MockExamsPage: React.FC = () => {
       if (error) throw error;
       
       setIsModalOpen(false);
-      setFormData({ title: '', duration_minutes: 600, total_items: 600, exam_type: ExamType.MOCK_BOARD });
+      setFormData({ title: '', duration_minutes: 600, total_items: 600 });
       
       // Navigate to builder
       if (data) {
         navigate(`/staff/mock-exams/${data.id}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating exam:', err);
-      alert('Failed to create exam');
+      alert('Failed to create exam. Please check your connection and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -156,12 +155,10 @@ const MockExamsPage: React.FC = () => {
                     <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${exam.is_published ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                       {exam.is_published ? 'Published' : 'Draft'}
                     </div>
-                    {exam.exam_type === ExamType.MOCK_BOARD && (
-                      <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
-                        <ShieldCheck size={10} />
-                        Mock Board
-                      </div>
-                    )}
+                    <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
+                      <ShieldCheck size={10} />
+                      Mock Board
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button 
@@ -251,8 +248,8 @@ const MockExamsPage: React.FC = () => {
                     type="number" 
                     required
                     min="1"
-                    disabled={formData.exam_type === ExamType.MOCK_BOARD}
-                    className={`w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${formData.exam_type === ExamType.MOCK_BOARD ? 'bg-slate-50 text-slate-400' : ''}`}
+                    disabled
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-slate-50 text-slate-400"
                     value={formData.duration_minutes}
                     onChange={e => setFormData({...formData, duration_minutes: parseInt(e.target.value)})}
                   />
@@ -263,8 +260,8 @@ const MockExamsPage: React.FC = () => {
                     type="number" 
                     required
                     min="1"
-                    disabled={formData.exam_type === ExamType.MOCK_BOARD}
-                    className={`w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${formData.exam_type === ExamType.MOCK_BOARD ? 'bg-slate-50 text-slate-400' : ''}`}
+                    disabled
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-slate-50 text-slate-400"
                     value={formData.total_items}
                     onChange={e => setFormData({...formData, total_items: parseInt(e.target.value)})}
                   />
