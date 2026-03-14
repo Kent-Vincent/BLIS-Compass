@@ -31,11 +31,21 @@ const MockExamsPage: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('mock_exams')
-        .select('*')
+        .select(`
+          *,
+          mock_exam_items (count)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setExams(data || []);
+      
+      // Transform data to include item_count
+      const examsWithCount = (data || []).map(exam => ({
+        ...exam,
+        item_count: exam.mock_exam_items?.[0]?.count || 0
+      }));
+      
+      setExams(examsWithCount);
     } catch (err) {
       console.error('Error fetching exams:', err);
     } finally {
@@ -95,7 +105,13 @@ const MockExamsPage: React.FC = () => {
     }
   };
 
-  const togglePublish = async (exam: MockExam) => {
+  const togglePublish = async (exam: any) => {
+    // Check if it has 600 questions before publishing
+    if (!exam.is_published && exam.item_count !== 600) {
+      alert(`Cannot publish exam. It must have exactly 600 questions (currently has ${exam.item_count}).`);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('mock_exams')
@@ -187,7 +203,9 @@ const MockExamsPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3 text-sm text-slate-500">
                     <ListChecks size={16} className="text-slate-400" />
-                    <span>{exam.total_items} Questions</span>
+                    <span className={(exam as any).item_count !== 600 ? 'text-red-500 font-bold' : ''}>
+                      {(exam as any).item_count} / {exam.total_items} Questions
+                    </span>
                   </div>
                 </div>
 
