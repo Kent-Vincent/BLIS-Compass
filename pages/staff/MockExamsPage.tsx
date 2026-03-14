@@ -1,13 +1,37 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'motion/react';
-import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck, AlertTriangle, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
 import { MockExam } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import GlassCard from '../../components/GlassCard';
 import { useNavigate } from 'react-router-dom';
+
+const Toast: React.FC<{ message: string, type: 'success' | 'error', onClose: () => void }> = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 50, x: '-50%' }}
+      animate={{ opacity: 1, y: 0, x: '-50%' }}
+      exit={{ opacity: 0, y: 20, x: '-50%' }}
+      className={`fixed bottom-8 left-1/2 z-[10000] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[300px] border ${
+        type === 'success' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-rose-600 border-rose-500 text-white'
+      }`}
+    >
+      {type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+      <span className="font-bold text-sm">{message}</span>
+      <button onClick={onClose} className="ml-auto p-1 hover:bg-white/20 rounded-lg transition-all">
+        <X size={16} />
+      </button>
+    </motion.div>
+  );
+};
 
 const MockExamsPage: React.FC = () => {
   const { user } = useAuth();
@@ -15,6 +39,8 @@ const MockExamsPage: React.FC = () => {
   const [exams, setExams] = useState<MockExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [warningModal, setWarningModal] = useState<{ isOpen: boolean, examTitle: string, currentCount: number } | null>(null);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     duration_minutes: 600,
@@ -82,13 +108,14 @@ const MockExamsPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error creating exam:', err);
-      alert('Failed to create exam. Please check your connection and try again.');
+      setToast({ message: 'Failed to create exam. Please try again.', type: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteExam = async (id: string) => {
+    // Custom confirm modal would be better, but for now let's use toast for the result
     if (!window.confirm('Are you sure you want to delete this exam? This will also delete all questions.')) return;
 
     try {
@@ -99,16 +126,21 @@ const MockExamsPage: React.FC = () => {
 
       if (error) throw error;
       setExams(exams.filter(e => e.id !== id));
+      setToast({ message: 'Exam deleted successfully', type: 'success' });
     } catch (err) {
       console.error('Error deleting exam:', err);
-      alert('Failed to delete exam');
+      setToast({ message: 'Failed to delete exam', type: 'error' });
     }
   };
 
   const togglePublish = async (exam: any) => {
     // Check if it has 600 questions before publishing
     if (!exam.is_published && exam.item_count !== 600) {
-      alert(`Cannot publish exam. It must have exactly 600 questions (currently has ${exam.item_count}).`);
+      setWarningModal({
+        isOpen: true,
+        examTitle: exam.title,
+        currentCount: exam.item_count
+      });
       return;
     }
 
@@ -120,8 +152,13 @@ const MockExamsPage: React.FC = () => {
 
       if (error) throw error;
       setExams(exams.map(e => e.id === exam.id ? { ...e, is_published: !exam.is_published } : e));
+      setToast({
+        message: exam.is_published ? 'Exam unpublished successfully' : 'Exam published successfully!',
+        type: 'success'
+      });
     } catch (err) {
       console.error('Error toggling publish:', err);
+      setToast({ message: 'Failed to update exam status', type: 'error' });
     }
   };
 
@@ -307,6 +344,58 @@ const MockExamsPage: React.FC = () => {
         </div>,
         document.body
       )}
+
+      {/* Warning Modal */}
+      {warningModal?.isOpen && createPortal(
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl text-center"
+          >
+            <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle size={40} />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Incomplete Exam</h2>
+            <p className="text-slate-500 mb-8">
+              The exam <span className="font-bold text-slate-700">"{warningModal.examTitle}"</span> cannot be published yet. 
+              It requires exactly <span className="font-bold text-indigo-600">600 questions</span>, but currently only has <span className="font-bold text-rose-500">{warningModal.currentCount}</span>.
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  const exam = exams.find(e => e.title === warningModal.examTitle);
+                  if (exam) navigate(`/staff/mock-exams/${exam.id}`);
+                  setWarningModal(null);
+                }}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+              >
+                Go to Builder
+                <ExternalLink size={18} />
+              </button>
+              <button 
+                onClick={() => setWarningModal(null)}
+                className="w-full py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
