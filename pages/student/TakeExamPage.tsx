@@ -224,8 +224,6 @@ const TakeExamPage: React.FC = () => {
   const handleSubmit = async () => {
     if (isFinished) return;
     
-    if (!window.confirm('Are you sure you want to submit your answers?')) return;
-
     let correctCount = 0;
     items.forEach(item => {
       if (answers[item.id] === item.correct_answer) {
@@ -356,7 +354,7 @@ const TakeExamPage: React.FC = () => {
       <div className="flex justify-between items-center sticky top-0 bg-slate-50/90 backdrop-blur-md z-50 py-4 -mx-4 px-4 border-b border-slate-200/50">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => window.confirm('Exit exam? Your progress will be saved.') && navigate('/student/mock-exams')}
+            onClick={() => navigate('/student/mock-exams')}
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
           >
             <ArrowLeft size={24} />
