@@ -45,7 +45,7 @@ const RegisterPage: React.FC = () => {
         <GlassCard className="p-8">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-slate-800">Join ComPASS</h2>
-            <p className="text-slate-500">Start your journey to LIS mastery</p>
+            <p className="text-slate-500">Start your journey to mastery</p>
           </div>
 
           {error && (

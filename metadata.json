@@ -1,5 +1,5 @@
 {
-  "name": "LIS ComPASS",
-  "description": "A gamified review platform for Library and Information Science students, blending the fun of Duolingo with the academic rigor of Coursera.",
+  "name": "ComPASS",
+  "description": "A gamified review platform for students, blending the fun of Duolingo with the academic rigor of Coursera.",
   "requestFramePermissions": []
 }

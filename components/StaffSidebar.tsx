@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { NavLink } from 'react-router-dom';
+import Logo from './Logo';
 
 const StaffSidebar: React.FC = () => {
   const { signOut, signingOut } = useAuth();
@@ -31,11 +32,8 @@ const StaffSidebar: React.FC = () => {
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0">
-      <div className="p-6 flex items-center gap-3 border-b border-slate-50">
-        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-          <Compass size={24} />
-        </div>
-        <span className="font-bold text-slate-800 text-xl tracking-tight">ComPASS</span>
+      <div className="p-6 border-b border-slate-50">
+        <Logo showText size={40} />
       </div>
 
       <nav className="flex-1 p-4 space-y-1">

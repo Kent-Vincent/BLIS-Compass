@@ -96,7 +96,7 @@ const EmailVerifiedPage: React.FC = () => {
                 
                 <h2 className="text-3xl font-bold text-slate-800 mb-4">Email Verified!</h2>
                 <p className="text-slate-600 mb-8 leading-relaxed">
-                  Your account has been successfully verified. You can now access all the features of LIS ComPASS.
+                  Your account has been successfully verified. You can now access all the features of ComPASS.
                 </p>
 
                 <Link 

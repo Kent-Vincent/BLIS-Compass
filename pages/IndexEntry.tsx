@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GraduationCap, ShieldCheck, ArrowRight, Loader2, Compass, Send } from 'lucide-react';
 import { supabase } from '../src/lib/supabase';
 import GlassCard from '../components/GlassCard';
+import Logo from '../components/Logo';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -66,13 +67,11 @@ const IndexEntry: React.FC = () => {
         className="text-center mb-12"
       >
         <div className="flex justify-center mb-6">
-          <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-200">
-            <Compass size={40} />
-          </div>
+          <Logo size={80} />
         </div>
-        <h1 className="text-5xl font-bold text-slate-800 mb-4 tracking-tight">LIS ComPASS</h1>
+        <h1 className="text-5xl font-bold text-slate-800 mb-4 tracking-tight">ComPASS</h1>
         <p className="text-slate-600 max-w-md mx-auto text-lg">
-          Your path to Library and Information Science success.
+          Your path to academic success.
         </p>
       </motion.div>
 
@@ -150,7 +149,7 @@ const IndexEntry: React.FC = () => {
       </div>
 
       <footer className="mt-16 text-slate-400 text-xs uppercase tracking-widest font-medium">
-        © 2024 LIS ComPASS • Powered by Gemini AI
+        © 2024 ComPASS • Powered by Gemini AI
       </footer>
     </div>
   );
