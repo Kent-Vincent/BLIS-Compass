@@ -15,7 +15,7 @@ const Logo: React.FC<LogoProps> = ({ size = 40, className = "", showText = false
         style={{ width: size, height: size }}
       >
         <img 
-          src="/logo.webp" 
+          src="/logo.jpeg" 
           alt="ComPASS Logo" 
           className="w-full h-full object-contain"
           referrerPolicy="no-referrer"
