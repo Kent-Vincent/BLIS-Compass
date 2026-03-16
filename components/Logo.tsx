@@ -1,5 +1,6 @@
 
 import React from 'react';
+import logo from '../assets/Logo.jpeg';
 
 interface LogoProps {
   size?: number;
@@ -15,7 +16,7 @@ const Logo: React.FC<LogoProps> = ({ size = 40, className = "", showText = false
         style={{ width: size, height: size }}
       >
         <img 
-          src="/logo.jpeg" 
+          src={logo}
           alt="ComPASS Logo" 
           className="w-full h-full object-contain"
           referrerPolicy="no-referrer"
