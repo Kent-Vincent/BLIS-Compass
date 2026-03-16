@@ -1,267 +1,454 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Trophy, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  ArrowRight, 
   RotateCcw,
-  Timer,
-  Star,
+  Play,
+  Info,
+  ListOrdered,
+  ChevronLeft,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
   Search,
   FileText,
-  Library
+  Star,
+  Gamepad2,
+  BookOpen
 } from 'lucide-react';
 import { QUESTIONS, Question } from '../data/sourceQuestions';
+import GlassCard from '../../../components/GlassCard';
+
+type GameState = 'menu' | 'instructions' | 'difficulty' | 'sets' | 'playing' | 'feedback' | 'finished' | 'scoreboard';
+type Difficulty = 'easy' | 'average' | 'difficult';
 
 export default function SourceDetectives() {
-  const [gameState, setGameState] = useState<'start' | 'playing' | 'finished'>('start');
-  const [difficulty, setDifficulty] = useState<'easy' | 'average' | 'difficult'>('easy');
+  const navigate = useNavigate();
+  const [gameState, setGameState] = useState<GameState>('menu');
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy');
+  const [setNumber, setSetNumber] = useState<number>(1);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(30);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [showExplanation, setShowExplanation] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [highScores, setHighScores] = useState<Record<string, number>>({});
 
+  // Load high scores
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (gameState === 'playing' && timeLeft > 0 && !showExplanation) {
-      timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0 && gameState === 'playing') {
-      handleOptionSelect('TIMEOUT');
-    }
-    return () => clearInterval(timer);
-  }, [gameState, timeLeft, showExplanation]);
+    const saved = localStorage.getItem('source_detectives_scores');
+    if (saved) setHighScores(JSON.parse(saved));
+  }, []);
 
-  const startGame = (diff: 'easy' | 'average' | 'difficult') => {
+  const startGame = (diff: Difficulty, setNum: number) => {
     setDifficulty(diff);
-    const shuffled = [...QUESTIONS[diff]].sort(() => Math.random() - 0.5);
-    setQuestions(shuffled);
+    setSetNumber(setNum);
+    const selectedQuestions = QUESTIONS[diff][setNum] || QUESTIONS[diff][1];
+    setQuestions(selectedQuestions);
     setGameState('playing');
     setCurrentQuestionIndex(0);
     setScore(0);
-    setTimeLeft(30);
     setSelectedOption(null);
-    setShowExplanation(false);
   };
 
   const handleOptionSelect = (optionId: string) => {
-    if (selectedOption || showExplanation) return;
-
+    if (selectedOption) return;
     setSelectedOption(optionId);
     if (optionId === questions[currentQuestionIndex].correctId) {
       setScore((prev) => prev + 1);
     }
-    setShowExplanation(true);
+    setTimeout(() => {
+      setGameState('feedback');
+    }, 200);
   };
 
   const nextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
       setSelectedOption(null);
-      setShowExplanation(false);
-      setTimeLeft(30);
+      setGameState('playing');
     } else {
+      const scoreKey = `${difficulty}_set${setNumber}`;
+      const newScores = { ...highScores, [scoreKey]: Math.max(highScores[scoreKey] || 0, score) };
+      setHighScores(newScores);
+      localStorage.setItem('source_detectives_scores', JSON.stringify(newScores));
       setGameState('finished');
     }
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
+  const BackToDashboard = () => (
+    <button
+      onClick={() => navigate('/student/games')}
+      className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold group"
+    >
+      <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+      Back to Games
+    </button>
+  );
 
-  if (gameState === 'start') {
+  const GameTitle = () => (
+    <div className="flex items-center justify-center gap-4 mb-8">
+      <Search className="text-blue-500 w-8 h-8" />
+      <h1 className="text-4xl md:text-5xl font-black text-amber-400 tracking-tighter uppercase italic">
+        Source Detectives
+      </h1>
+      <Search className="text-blue-500 w-8 h-8" />
+    </div>
+  );
+
+  // Main Menu
+  if (gameState === 'menu') {
     return (
-      <div className="max-w-2xl mx-auto text-center py-12 px-4">
-        <motion.div
+      <div className="min-h-[70vh] flex flex-col p-4 md:p-8">
+        <div className="mb-12">
+          <BackToDashboard />
+        </div>
+        
+        <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100"
+          className="flex-grow flex flex-col items-center justify-center text-center"
         >
-          <div className="w-20 h-20 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Search className="w-10 h-10 text-emerald-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">Source Detectives</h1>
-          <p className="text-slate-600 mb-8">
-            Identify primary, secondary, and tertiary sources in various research scenarios!
-          </p>
+          <GameTitle />
           
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {(['easy', 'average', 'difficult'] as const).map((diff) => (
-              <button
-                key={diff}
-                onClick={() => startGame(diff)}
-                className="group relative p-4 rounded-2xl border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50 transition-all duration-300"
-              >
-                <span className="block text-lg font-semibold capitalize text-slate-900 group-hover:text-emerald-600">
-                  {diff}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {QUESTIONS[diff].length} Questions
-                </span>
-              </button>
-            ))}
+          <p className="text-slate-500 text-lg mb-12 max-w-md mx-auto leading-relaxed">
+            Become a library detective! Identify primary, secondary, and tertiary sources across various research scenarios.
+          </p>
+
+          <div className="flex flex-wrap justify-center gap-4 w-full max-w-2xl">
+            <button
+              onClick={() => setGameState('instructions')}
+              className="flex items-center justify-center gap-3 px-8 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100 active:scale-95"
+            >
+              <Play size={24} fill="currentColor" />
+              Play
+            </button>
+            
+            <button
+              onClick={() => setGameState('instructions')}
+              className="flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100 active:scale-95"
+            >
+              <Info size={24} />
+              How to Play
+            </button>
+
+            <button
+              onClick={() => setGameState('scoreboard')}
+              className="flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100 active:scale-95"
+            >
+              <ListOrdered size={24} />
+              Scoreboard
+            </button>
+
+            <button
+              onClick={() => navigate('/student/games')}
+              className="flex items-center justify-center gap-2 px-8 py-4 bg-slate-700 text-white rounded-2xl font-bold text-xl hover:bg-slate-800 transition-all shadow-xl active:scale-95"
+            >
+              <Gamepad2 size={24} />
+              Main Menu
+            </button>
           </div>
         </motion.div>
       </div>
     );
   }
 
+  // Instructions
+  if (gameState === 'instructions') {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 md:p-8">
+        <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tight uppercase">Player Instructions</h2>
+        <GlassCard className="w-full max-w-2xl p-8 md:p-12 border-white/60">
+          <ul className="space-y-6 text-slate-700 font-bold text-lg">
+            <li className="flex gap-4">
+              <span className="text-blue-600">1.</span>
+              <p>READ EACH QUESTION CAREFULLY.</p>
+            </li>
+            <li className="flex gap-4">
+              <span className="text-blue-600">2.</span>
+              <p>CHOOSE ONLY ONE BEST ANSWER FROM THE CHOICES GIVEN.</p>
+            </li>
+            <li className="flex gap-4">
+              <span className="text-blue-600">3.</span>
+              <p>THE NUMBER OF CHOICES INCREASES AT EACH LEVEL DO NOT ASSUME PATTERNS.</p>
+            </li>
+            <li className="flex gap-4">
+              <span className="text-blue-600">4.</span>
+              <p>NO SKIPPING OF QUESTIONS.</p>
+            </li>
+            <li className="flex gap-4">
+              <span className="text-blue-600">5.</span>
+              <p>NO CHANGING OF ANSWERS ONCE SUBMITTED.</p>
+            </li>
+            <li className="flex gap-4">
+              <span className="text-blue-600">6.</span>
+              <p>EXTERNAL REFERENCES ARE NOT ALLOWED, UNLESS PERMITTED BY THE INSTRUCTOR.</p>
+            </li>
+          </ul>
+
+          <div className="flex justify-between mt-12">
+            <button
+              onClick={() => setGameState('menu')}
+              className="flex items-center gap-2 px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all active:scale-95"
+            >
+              <ChevronLeft size={20} />
+              Back
+            </button>
+            <button
+              onClick={() => setGameState('difficulty')}
+              className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95"
+            >
+              Next
+              <ArrowRight size={20} />
+            </button>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  // Difficulty Selection
+  if (gameState === 'difficulty') {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 md:p-8">
+        <GameTitle />
+        <h2 className="text-2xl font-black text-slate-900 mb-8 tracking-widest uppercase">Select Difficulty</h2>
+        
+        <div className="flex flex-wrap justify-center gap-6 mb-12">
+          {(['easy', 'average', 'difficult'] as const).map((diff) => (
+            <button
+              key={diff}
+              onClick={() => {
+                setDifficulty(diff);
+                setGameState('sets');
+              }}
+              className="px-12 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl active:scale-95 capitalize"
+            >
+              {diff}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setGameState('instructions')}
+          className="flex items-center gap-2 px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all active:scale-95"
+        >
+          <ChevronLeft size={20} />
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  // Set Selection
+  if (gameState === 'sets') {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 md:p-8">
+        <GameTitle />
+        <h2 className="text-2xl font-black text-slate-900 mb-8 tracking-widest uppercase">
+          Select Set - <span className="text-blue-600">{difficulty}</span>
+        </h2>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-12 w-full max-w-4xl">
+          {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+            <button
+              key={num}
+              onClick={() => startGame(difficulty, num)}
+              className="py-6 bg-blue-500 text-white rounded-2xl font-bold text-xl hover:bg-blue-600 transition-all shadow-lg active:scale-95"
+            >
+              Set {num}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setGameState('difficulty')}
+          className="flex items-center gap-2 px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all active:scale-95"
+        >
+          <ChevronLeft size={20} />
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  // Playing State
+  if (gameState === 'playing') {
+    const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion) return null;
+
+    return (
+      <div className="max-w-5xl mx-auto py-8 px-4">
+        <GameTitle />
+        
+        <GlassCard className="p-8 md:p-12 mb-8 border-white/60 bg-slate-800/50">
+          <div className="flex items-center gap-4 mb-8">
+            <span className="text-2xl font-black text-white">
+              {currentQuestionIndex + 1}. {currentQuestion.scenario}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {currentQuestion.options.map((option) => (
+              <motion.button
+                key={option.id}
+                whileHover={{ y: -8, shadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleOptionSelect(option.id)}
+                className={`p-8 rounded-2xl border-4 transition-all duration-300 flex items-center justify-center text-center min-h-[200px] ${
+                  selectedOption === option.id 
+                    ? (option.id === currentQuestion.correctId ? 'border-emerald-500 bg-emerald-500/20' : 'border-red-500 bg-red-500/20')
+                    : 'border-transparent bg-emerald-700/40 hover:border-blue-500'
+                }`}
+              >
+                <span className="text-xl font-bold text-white leading-tight">
+                  {option.label}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-8 border-t border-white/10">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                <span className="font-black text-white uppercase tracking-widest">Score: {score}</span>
+              </div>
+              <div className="font-black text-blue-400 uppercase tracking-widest">
+                {difficulty} - Set {setNumber}
+              </div>
+            </div>
+            <div className="font-black text-white uppercase tracking-widest">
+              Question {currentQuestionIndex + 1}/{questions.length}
+            </div>
+          </div>
+          
+          <div className="mt-6 w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full bg-amber-400"
+              initial={{ width: 0 }}
+              animate={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+            />
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  // Feedback State
+  if (gameState === 'feedback') {
+    const isCorrect = selectedOption === questions[currentQuestionIndex].correctId;
+
+    return (
+      <div className="max-w-3xl mx-auto py-12 px-4">
+        <GameTitle />
+        <GlassCard className="p-8 md:p-12 border-white/60 text-center">
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+            {isCorrect ? <CheckCircle2 size={48} /> : <XCircle size={48} />}
+          </div>
+          
+          <h2 className={`text-4xl font-black mb-4 tracking-tight ${isCorrect ? 'text-emerald-600' : 'text-red-600'}`}>
+            {isCorrect ? 'Excellent!' : 'Incorrect'}
+          </h2>
+
+          <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 mb-8 text-left">
+            <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-2">Detective's Insight</p>
+            <p className="text-slate-700 text-lg leading-relaxed font-medium">
+              {questions[currentQuestionIndex].explanation}
+            </p>
+          </div>
+
+          <button
+            onClick={nextQuestion}
+            className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-xl hover:bg-blue-700 transition-all shadow-lg active:scale-95"
+          >
+            {currentQuestionIndex === questions.length - 1 ? 'Finish Case' : 'Next Clue'}
+            <ArrowRight size={24} />
+          </button>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  // Finished State
   if (gameState === 'finished') {
     const percentage = (score / questions.length) * 100;
     return (
-      <div className="max-w-2xl mx-auto text-center py-12 px-4">
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-8">
+        <GameTitle />
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white rounded-3xl p-12 shadow-xl border border-slate-100"
+          className="bg-white rounded-3xl p-12 shadow-2xl border border-slate-100 text-center max-w-lg w-full"
         >
           <div className="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Trophy className="w-12 h-12 text-yellow-600" />
           </div>
-          <h2 className="text-4xl font-bold text-slate-900 mb-2">Great Job!</h2>
-          <p className="text-xl text-slate-600 mb-8">You scored {score} out of {questions.length}</p>
+          <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tight">Case Closed!</h2>
+          <p className="text-slate-500 mb-12">You've completed {difficulty} - Set {setNumber}.</p>
           
-          <div className="flex justify-center gap-4 mb-8">
-            <div className="px-6 py-3 bg-slate-50 rounded-2xl">
-              <span className="block text-sm text-slate-500 uppercase font-bold tracking-wider">Accuracy</span>
-              <span className="text-2xl font-bold text-slate-900">{percentage}%</span>
+          <div className="grid grid-cols-2 gap-6 mb-12">
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+              <span className="block text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2">Final Score</span>
+              <span className="text-4xl font-black text-blue-600">{score}/{questions.length}</span>
             </div>
-            <div className="px-6 py-3 bg-slate-50 rounded-2xl">
-              <span className="block text-sm text-slate-500 uppercase font-bold tracking-wider">Difficulty</span>
-              <span className="text-2xl font-bold text-slate-900 capitalize">{difficulty}</span>
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+              <span className="block text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-2">Accuracy</span>
+              <span className="text-4xl font-black text-blue-600">{Math.round(percentage)}%</span>
             </div>
           </div>
 
-          <button
-            onClick={() => setGameState('start')}
-            className="flex items-center justify-center gap-2 w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-colors"
-          >
-            <RotateCcw className="w-5 h-5" />
-            Play Again
-          </button>
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={() => setGameState('sets')}
+              className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg active:scale-95"
+            >
+              <RotateCcw size={20} />
+              Try Another Set
+            </button>
+            <button
+              onClick={() => setGameState('menu')}
+              className="py-4 text-slate-500 font-bold hover:text-slate-700 transition-colors"
+            >
+              Back to Game Menu
+            </button>
+          </div>
         </motion.div>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-3xl mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-yellow-500" />
-            <span className="font-bold text-slate-700">Score: {score}</span>
-          </div>
-          <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
-            <Star className="w-4 h-4 text-emerald-500" />
-            <span className="font-bold text-slate-700">Q: {currentQuestionIndex + 1}/{questions.length}</span>
-          </div>
-        </div>
-        
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-colors ${
-          timeLeft <= 10 ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-100 text-slate-700'
-        }`}>
-          <Timer className="w-5 h-5" />
-          <span className="font-mono text-xl font-bold">{timeLeft}s</span>
-        </div>
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentQuestionIndex}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 mb-6"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-emerald-50 rounded-lg">
-              <FileText className="w-6 h-6 text-emerald-600" />
-            </div>
-            <span className="text-sm font-bold text-emerald-600 uppercase tracking-wider">Scenario</span>
-          </div>
+  // Scoreboard
+  if (gameState === 'scoreboard') {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-8">
+        <GameTitle />
+        <GlassCard className="w-full max-w-2xl p-10 border-white/60">
+          <h2 className="text-3xl font-black text-slate-900 mb-8 text-center uppercase tracking-widest">Scoreboard</h2>
           
-          <h3 className="text-2xl font-bold text-slate-900 mb-8 leading-tight">
-            {currentQuestion.scenario}
-          </h3>
-
-          <div className="grid grid-cols-1 gap-4">
-            {currentQuestion.options.map((option) => {
-              const isSelected = selectedOption === option.id;
-              const isCorrect = option.id === currentQuestion.correctId;
-              const showResult = showExplanation;
-
-              let buttonClass = "p-5 rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between group ";
-              if (!showResult) {
-                buttonClass += "border-slate-100 hover:border-emerald-600 hover:bg-emerald-50";
-              } else {
-                if (isCorrect) {
-                  buttonClass += "border-emerald-500 bg-emerald-50 text-emerald-700";
-                } else if (isSelected) {
-                  buttonClass += "border-red-500 bg-red-50 text-red-700";
-                } else {
-                  buttonClass += "border-slate-100 opacity-50";
-                }
-              }
-
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => handleOptionSelect(option.id)}
-                  disabled={showResult}
-                  className={buttonClass}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold transition-colors ${
-                      !showResult ? 'bg-slate-100 text-slate-500 group-hover:bg-emerald-600 group-hover:text-white' :
-                      isCorrect ? 'bg-emerald-500 text-white' :
-                      isSelected ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-400'
-                    }`}>
-                      {option.id}
-                    </span>
-                    <span className="font-medium text-lg">{option.label}</span>
-                  </div>
-                  {showResult && isCorrect && <CheckCircle2 className="w-6 h-6 text-emerald-500" />}
-                  {showResult && isSelected && !isCorrect && <XCircle className="w-6 h-6 text-red-500" />}
-                </button>
-              );
-            })}
+          <div className="max-h-[400px] overflow-y-auto pr-2 space-y-4 mb-10 custom-scrollbar">
+            {Object.keys(highScores).length > 0 ? (
+              Object.entries(highScores).sort().map(([key, s]) => (
+                <div key={key} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <span className="text-slate-700 font-bold capitalize">{key.replace('_', ' ')}</span>
+                  <span className="text-blue-600 font-black text-2xl">{s}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-slate-400 py-12 font-medium italic">No cases solved yet, detective!</p>
+            )}
           </div>
-        </motion.div>
-      </AnimatePresence>
 
-      <AnimatePresence>
-        {showExplanation && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 mb-6"
+          <button
+            onClick={() => setGameState('menu')}
+            className="w-full py-4 bg-orange-500 text-white rounded-2xl font-bold hover:bg-orange-600 transition-all active:scale-95"
           >
-            <div className="flex gap-4">
-              <div className="w-10 h-10 bg-emerald-200 rounded-full flex items-center justify-center flex-shrink-0">
-                <Library className="w-5 h-5 text-emerald-700" />
-              </div>
-              <div>
-                <h4 className="font-bold text-emerald-900 mb-1">Detective's Note</h4>
-                <p className="text-emerald-800 leading-relaxed">
-                  {currentQuestion.explanation}
-                </p>
-              </div>
-            </div>
-            
-            <button
-              onClick={nextQuestion}
-              className="mt-6 flex items-center justify-center gap-2 w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors"
-            >
-              {currentQuestionIndex === questions.length - 1 ? 'Finish Case' : 'Next Clue'}
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+            Back to Menu
+          </button>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  return null;
 }
