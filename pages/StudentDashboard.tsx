@@ -9,6 +9,11 @@ import MockExamsPage from './student/MockExamsPage';
 import TakeExamPage from './student/TakeExamPage';
 import PracticeSetsTab from './student/PracticeSetsTab';
 import PracticePlayer from './student/PracticePlayer';
+import ReferenceCrushPro from './student/games/ReferenceCrushPro';
+import SourceDetectives from './student/games/SourceDetectives';
+import Classify from './student/games/Classify';
+import ShelfShuffle from './student/games/ShelfShuffle';
+import MarcMatch from './student/games/MarcMatch';
 import Logo from '../components/Logo';
 import { 
   Home, 
@@ -37,10 +42,11 @@ import {
 import { AreaChart, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const GAMES: GameCard[] = [
-  { id: '1', title: 'Cataloging Blitz', description: 'Correctly assign MARC tags in this fast-paced challenge.', category: '', icon: 'Tags', difficulty: 'Beginner' },
-  { id: '2', title: 'DDC Climber', description: 'Scale the mountain by correctly identifying class numbers.', category: '', icon: 'Mountain', difficulty: 'Beginner' },
-  { id: '3', title: 'Reference Quest', description: 'Find the right sources for complex user inquiries.', category: '', icon: 'Search', difficulty: 'Beginner' },
-  { id: '4', title: 'Indexing Maze', description: 'Connect related terms using controlled vocabulary.', category: '', icon: 'Network', difficulty: 'Beginner' },
+  { id: '1', title: 'Reference Crush Pro', description: 'Test your reference skills in a fast-paced matching game.', category: 'Reference Services', icon: 'Search', difficulty: 'Advanced' },
+  { id: '2', title: 'Source Detectives', description: 'Investigate and identify the correct sources in challenging scenarios.', category: 'Reference Services', icon: 'Search', difficulty: 'Intermediate' },
+  { id: '3', title: 'Classify', description: 'Classify items correctly in this new challenge.', category: 'Classification', icon: 'Mountain', difficulty: 'Beginner' },
+  { id: '4', title: 'Shelf Shuffle', description: 'Arrange books in the correct order on the shelf.', category: 'Cataloging', icon: 'Tags', difficulty: 'Intermediate' },
+  { id: '5', title: 'Marc Match', description: 'Match MARC fields to their correct uses.', category: 'Cataloging', icon: 'Tags', difficulty: 'Intermediate' },
 ];
 
 const PROGRESS_DATA = [
@@ -193,19 +199,22 @@ const OverviewTab: React.FC<{ profile: any, IconMap: any, navigate: any }> = ({ 
   </div>
 );
 
-const GamesTab: React.FC<{ IconMap: any }> = ({ IconMap }) => (
+const GamesTab: React.FC<{ IconMap: any, navigate: any }> = ({ IconMap, navigate }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
     {GAMES.map((game) => (
-      <GlassCard key={game.id} hoverEffect className="flex flex-col border-white/60">
-        <div className="flex items-center justify-between mb-4">
-           <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+      <GlassCard key={game.id} hoverEffect className="flex flex-col border-white/60 p-6">
+        <div className="flex items-center justify-between mb-6">
+           <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shadow-sm">
               {React.createElement(IconMap[game.icon] || Gamepad2, { size: 28 })}
            </div>
         </div>
         <h3 className="text-xl font-bold text-slate-800 mb-2">{game.title}</h3>
-        <p className="text-slate-500 text-sm mb-6 flex-grow">{game.description}</p>
-        <div className="flex items-center justify-between mt-auto">
-           <button className="w-full bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">
+        <p className="text-slate-500 text-sm mb-8 flex-grow leading-relaxed">{game.description}</p>
+        <div className="flex items-center justify-end mt-auto">
+           <button 
+             onClick={() => navigate(`/student/games/${game.id}`)}
+             className="bg-blue-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95"
+           >
              Play
            </button>
         </div>
@@ -341,7 +350,12 @@ const StudentDashboard: React.FC = () => {
 
         <Routes>
           <Route path="overview" element={<OverviewTab profile={profile} IconMap={IconMap} navigate={navigate} />} />
-          <Route path="games" element={<GamesTab IconMap={IconMap} />} />
+          <Route path="games" element={<GamesTab IconMap={IconMap} navigate={navigate} />} />
+          <Route path="games/1" element={<ReferenceCrushPro />} />
+          <Route path="games/2" element={<SourceDetectives />} />
+          <Route path="games/3" element={<Classify />} />
+          <Route path="games/4" element={<ShelfShuffle />} />
+          <Route path="games/5" element={<MarcMatch />} />
           <Route path="mock-exams" element={<MockExamsPage />} />
           <Route path="mock-exams/:id" element={<TakeExamPage />} />
           <Route path="practice" element={<PracticeSetsTab />} />
