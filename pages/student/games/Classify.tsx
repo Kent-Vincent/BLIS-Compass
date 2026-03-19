@@ -19,7 +19,7 @@ import {
   ClassifyLevel 
 } from '../data/classifyData';
 
-export default function Game3() {
+export default function Classify() {
   const [gameState, setGameState] = useState<'start' | 'playing' | 'finished'>('start');
   const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -95,7 +95,7 @@ export default function Game3() {
           <div className="w-20 h-20 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <Tag className="w-10 h-10 text-amber-600" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">Classify It!</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-4">Classify</h1>
           <p className="text-slate-600 mb-8">
             Master the Dewey Decimal System and Cutter Numbers by classifying real books!
           </p>

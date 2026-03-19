@@ -13,22 +13,114 @@ import {
   ArrowRight,
   BookOpen,
   Gamepad2,
-  Star
+  Star,
+  Lock
 } from 'lucide-react';
 import { QUESTIONS, Question } from '../data/questions';
 import GlassCard from '../../../components/GlassCard';
+import { supabase } from '../../../src/lib/supabase';
+import { useAuth } from '../../../context/AuthContext';
 
 type GameState = 'menu' | 'levels' | 'playing' | 'feedback' | 'finished' | 'how-to-play' | 'scoreboard';
 type Difficulty = 'easy' | 'average' | 'difficult';
 
 export default function ReferenceCrushPro() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [gameState, setGameState] = useState<GameState>('menu');
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [completedLevels, setCompletedLevels] = useState<string[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(true);
+
+  // Load progress
+  useEffect(() => {
+    if (user) {
+      const localKey = `reference-crush-progress-${user.id}`;
+      const localData = localStorage.getItem(localKey);
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed)) {
+            setCompletedLevels(parsed);
+          }
+        } catch (e) {
+          console.error('Error parsing local progress:', e);
+        }
+      }
+      fetchProgress();
+    }
+  }, [user]);
+
+  const fetchProgress = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('game_progress')
+        .select('completed_levels')
+        .eq('user_id', user.id)
+        .eq('game_id', 'reference-crush')
+        .single();
+
+      if (data) {
+        const onlineLevels = data.completed_levels || [];
+        const localKey = `reference-crush-progress-${user.id}`;
+        const localData = localStorage.getItem(localKey);
+        const localLevels = localData ? JSON.parse(localData) : [];
+        
+        // Merge online and local progress
+        const mergedLevels = [...new Set([...onlineLevels, ...localLevels])];
+        
+        setCompletedLevels(mergedLevels);
+        localStorage.setItem(localKey, JSON.stringify(mergedLevels));
+      } else if (error && error.code === 'PGRST116') {
+        // No record found, sync local to cloud if it exists
+        const localKey = `reference-crush-progress-${user.id}`;
+        const localData = localStorage.getItem(localKey);
+        if (localData) {
+          const localLevels = JSON.parse(localData);
+          if (localLevels.length > 0) {
+            await supabase.from('game_progress').upsert({
+              user_id: user.id,
+              game_id: 'reference-crush',
+              completed_levels: localLevels
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching progress:', err);
+    } finally {
+      setLoadingProgress(false);
+    }
+  };
+
+  const saveProgress = async (level: string) => {
+    if (!user) return;
+    
+    const newCompleted = [...new Set([...completedLevels, level])];
+    
+    // Update local storage first for immediate feedback
+    const localKey = `reference-crush-progress-${user.id}`;
+    localStorage.setItem(localKey, JSON.stringify(newCompleted));
+    setCompletedLevels(newCompleted);
+    
+    // Update Supabase
+    try {
+      await supabase
+        .from('game_progress')
+        .upsert({
+          user_id: user.id,
+          game_id: 'reference-crush',
+          completed_levels: newCompleted
+        });
+    } catch (err) {
+      console.error('Error saving progress to cloud:', err);
+    }
+  };
   const [highScores, setHighScores] = useState<Record<Difficulty, number>>({
     easy: 0,
     average: 0,
@@ -71,6 +163,13 @@ export default function ReferenceCrushPro() {
       const newScores = { ...highScores, [difficulty]: Math.max(highScores[difficulty], score) };
       setHighScores(newScores);
       localStorage.setItem('reference_crush_scores', JSON.stringify(newScores));
+      
+      // Save progress if score is high enough (80%)
+      const percentage = (score / questions.length) * 100;
+      if (percentage >= 80) {
+        saveProgress(difficulty);
+      }
+      
       setGameState('finished');
     }
   };
@@ -164,33 +263,51 @@ export default function ReferenceCrushPro() {
           <p className="text-slate-500 mb-12">Select a difficulty level to begin the reference quiz.</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
-            {(['easy', 'average', 'difficult'] as const).map((diff) => (
-              <GlassCard 
-                key={diff} 
-                hoverEffect 
-                onClick={() => startGame(diff)}
-                className="p-8 text-center cursor-pointer group border-white/60 flex flex-col items-center"
-              >
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-all group-hover:scale-110 ${
-                  diff === 'easy' ? 'bg-emerald-100 text-emerald-600' :
-                  diff === 'average' ? 'bg-blue-100 text-blue-600' :
-                  'bg-purple-100 text-purple-600'
-                }`}>
-                  <Star size={32} fill="currentColor" />
-                </div>
-                <h3 className="text-2xl font-bold text-slate-800 capitalize mb-2">
-                  {diff === 'average' ? 'Medium' : diff === 'difficult' ? 'Hard' : 'Easy'}
-                </h3>
-                <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-                  {diff === 'easy' ? 'Perfect for beginners starting their library journey.' : 
-                   diff === 'average' ? 'A balanced challenge for intermediate learners.' : 
-                   'Test your expertise with complex library scenarios.'}
-                </p>
-                <div className="mt-auto px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold group-hover:bg-blue-600 transition-colors">
-                  Select Level
-                </div>
-              </GlassCard>
-            ))}
+            {(['easy', 'average', 'difficult'] as const).map((diff) => {
+              const isLocked = diff === 'average' ? !completedLevels.includes('easy') :
+                               diff === 'difficult' ? !completedLevels.includes('average') :
+                               false;
+
+              return (
+                <GlassCard 
+                  key={diff} 
+                  hoverEffect={!isLocked}
+                  onClick={() => {
+                    if (isLocked) return;
+                    startGame(diff);
+                  }}
+                  className={`p-8 text-center cursor-pointer group border-white/60 flex flex-col items-center relative ${
+                    isLocked ? 'opacity-75 grayscale-[0.5]' : ''
+                  }`}
+                >
+                  {isLocked && (
+                    <div className="absolute top-4 right-4 text-slate-400">
+                      <Lock size={20} />
+                    </div>
+                  )}
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-all ${!isLocked ? 'group-hover:scale-110' : ''} ${
+                    diff === 'easy' ? 'bg-emerald-100 text-emerald-600' :
+                    diff === 'average' ? 'bg-blue-100 text-blue-600' :
+                    'bg-purple-100 text-purple-600'
+                  }`}>
+                    <Star size={32} fill="currentColor" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-slate-800 capitalize mb-2">
+                    {diff === 'average' ? 'Medium' : diff === 'difficult' ? 'Hard' : 'Easy'}
+                  </h3>
+                  <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+                    {diff === 'easy' ? 'Perfect for beginners starting their library journey.' : 
+                     diff === 'average' ? 'A balanced challenge for intermediate learners.' : 
+                     'Test your expertise with complex library scenarios.'}
+                  </p>
+                  <div className={`mt-auto px-6 py-2 rounded-xl text-sm font-bold transition-colors ${
+                    isLocked ? 'bg-slate-200 text-slate-500' : 'bg-slate-900 text-white group-hover:bg-blue-600'
+                  }`}>
+                    {isLocked ? 'Locked' : 'Select Level'}
+                  </div>
+                </GlassCard>
+              );
+            })}
           </div>
         </div>
       </div>

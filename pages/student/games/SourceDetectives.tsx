@@ -15,16 +15,20 @@ import {
   FileText,
   Star,
   Gamepad2,
-  BookOpen
+  BookOpen,
+  Lock
 } from 'lucide-react';
 import { QUESTIONS, Question } from '../data/sourceQuestions';
 import GlassCard from '../../../components/GlassCard';
+import { supabase } from '../../../src/lib/supabase';
+import { useAuth } from '../../../context/AuthContext';
 
 type GameState = 'menu' | 'instructions' | 'difficulty' | 'sets' | 'playing' | 'feedback' | 'finished' | 'scoreboard';
 type Difficulty = 'easy' | 'average' | 'difficult';
 
 export default function SourceDetectives() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [gameState, setGameState] = useState<GameState>('menu');
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [setNumber, setSetNumber] = useState<number>(1);
@@ -33,12 +37,97 @@ export default function SourceDetectives() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [highScores, setHighScores] = useState<Record<string, number>>({});
+  const [completedLevels, setCompletedLevels] = useState<string[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(true);
 
-  // Load high scores
+  // Load high scores and progress
   useEffect(() => {
     const saved = localStorage.getItem('source_detectives_scores');
     if (saved) setHighScores(JSON.parse(saved));
-  }, []);
+
+    if (user) {
+      const localKey = `source-detectives-progress-${user.id}`;
+      const localData = localStorage.getItem(localKey);
+      if (localData) {
+        try {
+          const parsed = JSON.parse(localData);
+          if (Array.isArray(parsed)) {
+            setCompletedLevels(parsed);
+          }
+        } catch (e) {
+          console.error('Error parsing local progress:', e);
+        }
+      }
+      fetchProgress();
+    }
+  }, [user]);
+
+  const fetchProgress = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('game_progress')
+        .select('completed_levels')
+        .eq('user_id', user.id)
+        .eq('game_id', 'source-detectives')
+        .single();
+
+      if (data) {
+        const onlineLevels = data.completed_levels || [];
+        const localKey = `source-detectives-progress-${user.id}`;
+        const localData = localStorage.getItem(localKey);
+        const localLevels = localData ? JSON.parse(localData) : [];
+        
+        // Merge online and local progress
+        const mergedLevels = [...new Set([...onlineLevels, ...localLevels])];
+        
+        setCompletedLevels(mergedLevels);
+        localStorage.setItem(localKey, JSON.stringify(mergedLevels));
+      } else if (error && error.code === 'PGRST116') {
+        // No record found, sync local to cloud if it exists
+        const localKey = `source-detectives-progress-${user.id}`;
+        const localData = localStorage.getItem(localKey);
+        if (localData) {
+          const localLevels = JSON.parse(localData);
+          if (localLevels.length > 0) {
+            await supabase.from('game_progress').upsert({
+              user_id: user.id,
+              game_id: 'source-detectives',
+              completed_levels: localLevels
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching progress:', err);
+    } finally {
+      setLoadingProgress(false);
+    }
+  };
+
+  const saveProgress = async (level: string) => {
+    if (!user) return;
+    
+    const newCompleted = [...new Set([...completedLevels, level])];
+    
+    // Update local storage first for immediate feedback
+    const localKey = `source-detectives-progress-${user.id}`;
+    localStorage.setItem(localKey, JSON.stringify(newCompleted));
+    setCompletedLevels(newCompleted);
+    
+    // Update Supabase
+    try {
+      await supabase
+        .from('game_progress')
+        .upsert({
+          user_id: user.id,
+          game_id: 'source-detectives',
+          completed_levels: newCompleted
+        });
+    } catch (err) {
+      console.error('Error saving progress to cloud:', err);
+    }
+  };
 
   const startGame = (diff: Difficulty, setNum: number) => {
     setDifficulty(diff);
@@ -72,6 +161,13 @@ export default function SourceDetectives() {
       const newScores = { ...highScores, [scoreKey]: Math.max(highScores[scoreKey] || 0, score) };
       setHighScores(newScores);
       localStorage.setItem('source_detectives_scores', JSON.stringify(newScores));
+      
+      // Save progress if score is high enough (80%)
+      const percentage = (score / questions.length) * 100;
+      if (percentage >= 80) {
+        saveProgress(`${difficulty}_set${setNumber}`);
+      }
+      
       setGameState('finished');
     }
   };
@@ -87,12 +183,18 @@ export default function SourceDetectives() {
   );
 
   const GameTitle = () => (
-    <div className="flex items-center justify-center gap-4 mb-8">
-      <Search className="text-blue-500 w-8 h-8" />
-      <h1 className="text-4xl md:text-5xl font-black text-amber-400 tracking-tighter uppercase italic">
-        Source Detectives
+    <div className="flex flex-col items-center justify-center gap-4 mb-12">
+      <div className="relative mb-4">
+        <div className="w-20 h-20 bg-blue-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 rotate-3">
+          <Search size={40} />
+        </div>
+        <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 text-white rounded-full flex items-center justify-center shadow-lg -rotate-12">
+          <Star size={16} fill="currentColor" />
+        </div>
+      </div>
+      <h1 className="text-5xl font-black text-slate-900 tracking-tight">
+        Source <span className="text-blue-600">Detectives</span>
       </h1>
-      <Search className="text-blue-500 w-8 h-8" />
     </div>
   );
 
@@ -115,38 +217,31 @@ export default function SourceDetectives() {
             Become a library detective! Identify primary, secondary, and tertiary sources across various research scenarios.
           </p>
 
-          <div className="flex flex-wrap justify-center gap-4 w-full max-w-2xl">
+          <div className="grid grid-cols-1 gap-4 w-full max-w-sm">
             <button
               onClick={() => setGameState('instructions')}
-              className="flex items-center justify-center gap-3 px-8 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100 active:scale-95"
+              className="group flex items-center justify-center gap-3 py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95"
             >
-              <Play size={24} fill="currentColor" />
-              Play
+              <Play size={24} fill="currentColor" className="group-hover:scale-110 transition-transform" />
+              Start Investigation
             </button>
             
-            <button
-              onClick={() => setGameState('instructions')}
-              className="flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100 active:scale-95"
-            >
-              <Info size={24} />
-              How to Play
-            </button>
-
-            <button
-              onClick={() => setGameState('scoreboard')}
-              className="flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl shadow-orange-100 active:scale-95"
-            >
-              <ListOrdered size={24} />
-              Scoreboard
-            </button>
-
-            <button
-              onClick={() => navigate('/student/games')}
-              className="flex items-center justify-center gap-2 px-8 py-4 bg-slate-700 text-white rounded-2xl font-bold text-xl hover:bg-slate-800 transition-all shadow-xl active:scale-95"
-            >
-              <Gamepad2 size={24} />
-              Main Menu
-            </button>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => setGameState('instructions')}
+                className="flex items-center justify-center gap-2 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+              >
+                <Info size={20} className="text-blue-500" />
+                How to Play
+              </button>
+              <button
+                onClick={() => setGameState('scoreboard')}
+                className="flex items-center justify-center gap-2 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold hover:bg-slate-50 transition-all active:scale-95 shadow-sm"
+              >
+                <ListOrdered size={20} className="text-blue-500" />
+                Scoreboard
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>
@@ -156,53 +251,54 @@ export default function SourceDetectives() {
   // Instructions
   if (gameState === 'instructions') {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 md:p-8">
-        <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tight uppercase">Player Instructions</h2>
-        <GlassCard className="w-full max-w-2xl p-8 md:p-12 border-white/60">
-          <ul className="space-y-6 text-slate-700 font-bold text-lg">
-            <li className="flex gap-4">
-              <span className="text-blue-600">1.</span>
-              <p>READ EACH QUESTION CAREFULLY.</p>
-            </li>
-            <li className="flex gap-4">
-              <span className="text-blue-600">2.</span>
-              <p>CHOOSE ONLY ONE BEST ANSWER FROM THE CHOICES GIVEN.</p>
-            </li>
-            <li className="flex gap-4">
-              <span className="text-blue-600">3.</span>
-              <p>THE NUMBER OF CHOICES INCREASES AT EACH LEVEL DO NOT ASSUME PATTERNS.</p>
-            </li>
-            <li className="flex gap-4">
-              <span className="text-blue-600">4.</span>
-              <p>NO SKIPPING OF QUESTIONS.</p>
-            </li>
-            <li className="flex gap-4">
-              <span className="text-blue-600">5.</span>
-              <p>NO CHANGING OF ANSWERS ONCE SUBMITTED.</p>
-            </li>
-            <li className="flex gap-4">
-              <span className="text-blue-600">6.</span>
-              <p>EXTERNAL REFERENCES ARE NOT ALLOWED, UNLESS PERMITTED BY THE INSTRUCTOR.</p>
-            </li>
-          </ul>
+      <div className="min-h-[70vh] flex flex-col p-4 md:p-8">
+        <div className="mb-12">
+          <button
+            onClick={() => setGameState('menu')}
+            className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold group"
+          >
+            <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+            Back to Menu
+          </button>
+        </div>
 
-          <div className="flex justify-between mt-12">
-            <button
-              onClick={() => setGameState('menu')}
-              className="flex items-center gap-2 px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all active:scale-95"
-            >
-              <ChevronLeft size={20} />
-              Back
-            </button>
-            <button
-              onClick={() => setGameState('difficulty')}
-              className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95"
-            >
-              Next
-              <ArrowRight size={20} />
-            </button>
-          </div>
-        </GlassCard>
+        <div className="flex-grow flex flex-col items-center justify-center">
+          <h2 className="text-3xl font-black text-slate-900 mb-8 tracking-tight uppercase">Detective Handbook</h2>
+          <GlassCard className="w-full max-w-2xl p-8 md:p-12 border-white/60">
+            <ul className="space-y-6 text-slate-700 font-medium text-lg">
+              <li className="flex gap-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">1</div>
+                <p>READ EACH QUESTION CAREFULLY.</p>
+              </li>
+              <li className="flex gap-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">2</div>
+                <p>CHOOSE ONLY ONE BEST ANSWER FROM THE CHOICES GIVEN.</p>
+              </li>
+              <li className="flex gap-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">3</div>
+                <p>THE NUMBER OF CHOICES INCREASES AT EACH LEVEL DO NOT ASSUME PATTERNS.</p>
+              </li>
+              <li className="flex gap-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">4</div>
+                <p>NO SKIPPING OF QUESTIONS.</p>
+              </li>
+              <li className="flex gap-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold">5</div>
+                <p>NO CHANGING OF ANSWERS ONCE SUBMITTED.</p>
+              </li>
+            </ul>
+
+            <div className="mt-12">
+              <button
+                onClick={() => setGameState('difficulty')}
+                className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-xl hover:bg-blue-700 transition-all shadow-lg active:scale-95"
+              >
+                Understood
+                <ArrowRight size={24} />
+              </button>
+            </div>
+          </GlassCard>
+        </div>
       </div>
     );
   }
@@ -210,32 +306,80 @@ export default function SourceDetectives() {
   // Difficulty Selection
   if (gameState === 'difficulty') {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 md:p-8">
-        <GameTitle />
-        <h2 className="text-2xl font-black text-slate-900 mb-8 tracking-widest uppercase">Select Difficulty</h2>
-        
-        <div className="flex flex-wrap justify-center gap-6 mb-12">
-          {(['easy', 'average', 'difficult'] as const).map((diff) => (
-            <button
-              key={diff}
-              onClick={() => {
-                setDifficulty(diff);
-                setGameState('sets');
-              }}
-              className="px-12 py-4 bg-orange-500 text-white rounded-2xl font-bold text-xl hover:bg-orange-600 transition-all shadow-xl active:scale-95 capitalize"
-            >
-              {diff}
-            </button>
-          ))}
+      <div className="min-h-[70vh] flex flex-col p-4 md:p-8">
+        <div className="mb-12">
+          <button
+            onClick={() => setGameState('menu')}
+            className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold group"
+          >
+            <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+            Back to Menu
+          </button>
         </div>
 
-        <button
-          onClick={() => setGameState('instructions')}
-          className="flex items-center gap-2 px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all active:scale-95"
-        >
-          <ChevronLeft size={20} />
-          Back
-        </button>
+        <div className="flex-grow flex flex-col items-center justify-center">
+          <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Select Difficulty</h2>
+          <p className="text-slate-500 mb-12">Choose your detective rank to begin.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+            {(['easy', 'average', 'difficult'] as const).map((diff) => {
+              const easySetsCompleted = completedLevels.filter(l => l.startsWith('easy_set')).length;
+              const averageSetsCompleted = completedLevels.filter(l => l.startsWith('average_set')).length;
+
+              const isLocked = diff === 'average' ? easySetsCompleted < 10 :
+                               diff === 'difficult' ? averageSetsCompleted < 10 :
+                               false;
+
+              const progressText = diff === 'average' ? `${easySetsCompleted}/10 Easy Sets` :
+                                   diff === 'difficult' ? `${averageSetsCompleted}/10 Medium Sets` :
+                                   '';
+
+              return (
+                <GlassCard 
+                  key={diff} 
+                  hoverEffect={!isLocked}
+                  onClick={() => {
+                    if (isLocked) return;
+                    setDifficulty(diff);
+                    setGameState('sets');
+                  }}
+                  className={`p-8 text-center cursor-pointer group border-white/60 flex flex-col items-center relative min-h-[320px] ${
+                    isLocked ? 'opacity-75 grayscale-[0.5]' : ''
+                  }`}
+                >
+                  {isLocked && (
+                    <div className="absolute top-4 right-4 text-slate-400">
+                      <Lock size={20} />
+                    </div>
+                  )}
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-all ${!isLocked ? 'group-hover:scale-110' : ''} ${
+                    diff === 'easy' ? 'bg-emerald-100 text-emerald-600' :
+                    diff === 'average' ? 'bg-blue-100 text-blue-600' :
+                    'bg-purple-100 text-purple-600'
+                  }`}>
+                    <Star size={32} fill="currentColor" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-slate-800 capitalize mb-2">
+                    {diff === 'average' ? 'Medium' : diff === 'difficult' ? 'Hard' : 'Easy'}
+                  </h3>
+                  
+                  <div className="mt-auto flex flex-col items-center gap-3">
+                    <div className={`px-6 py-2 rounded-xl text-sm font-bold transition-colors ${
+                      isLocked ? 'bg-slate-200 text-slate-500' : 'bg-slate-900 text-white group-hover:bg-blue-600'
+                    }`}>
+                      {isLocked ? 'Locked' : 'Select'}
+                    </div>
+                    {isLocked && (
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {progressText}
+                      </span>
+                    )}
+                  </div>
+                </GlassCard>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   }
@@ -243,31 +387,62 @@ export default function SourceDetectives() {
   // Set Selection
   if (gameState === 'sets') {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 md:p-8">
-        <GameTitle />
-        <h2 className="text-2xl font-black text-slate-900 mb-8 tracking-widest uppercase">
-          Select Set - <span className="text-blue-600">{difficulty}</span>
-        </h2>
-
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-12 w-full max-w-4xl">
-          {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-            <button
-              key={num}
-              onClick={() => startGame(difficulty, num)}
-              className="py-6 bg-blue-500 text-white rounded-2xl font-bold text-xl hover:bg-blue-600 transition-all shadow-lg active:scale-95"
-            >
-              Set {num}
-            </button>
-          ))}
+      <div className="min-h-[70vh] flex flex-col p-4 md:p-8">
+        <div className="mb-12">
+          <button
+            onClick={() => setGameState('difficulty')}
+            className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all font-semibold group"
+          >
+            <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+            Back to Difficulty
+          </button>
         </div>
 
-        <button
-          onClick={() => setGameState('difficulty')}
-          className="flex items-center gap-2 px-8 py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition-all active:scale-95"
-        >
-          <ChevronLeft size={20} />
-          Back
-        </button>
+        <div className="flex-grow flex flex-col items-center justify-center">
+          <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Select Case Set</h2>
+          <p className="text-slate-500 mb-12 capitalize">{difficulty} Level</p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 w-full max-w-4xl">
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => {
+              const levelKey = `${difficulty}_set${num}`;
+              const isCompleted = completedLevels.includes(levelKey);
+              
+              // A set is unlocked if it's Set 1 OR if the previous set is completed
+              const isLocked = num > 1 && !completedLevels.includes(`${difficulty}_set${num - 1}`);
+              
+              return (
+                <button
+                  key={num}
+                  disabled={isLocked}
+                  onClick={() => !isLocked && startGame(difficulty, num)}
+                  className={`py-6 border rounded-2xl font-bold text-xl transition-all shadow-sm relative overflow-hidden ${
+                    isLocked 
+                      ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
+                      : isCompleted 
+                        ? 'bg-blue-50 border-blue-200 text-blue-600 active:scale-95' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 active:scale-95'
+                  }`}
+                >
+                  {isLocked ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <Lock size={16} className="opacity-50" />
+                      <span className="text-xs uppercase tracking-wider opacity-50">Set {num}</span>
+                    </div>
+                  ) : (
+                    <>
+                      {isCompleted && (
+                        <div className="absolute top-1 right-1">
+                          <CheckCircle2 size={14} className="text-blue-600" />
+                        </div>
+                      )}
+                      Set {num}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   }
@@ -279,58 +454,72 @@ export default function SourceDetectives() {
 
     return (
       <div className="max-w-5xl mx-auto py-8 px-4">
-        <GameTitle />
+        <div className="flex items-center justify-between mb-8">
+          <button
+            onClick={() => setGameState('menu')}
+            className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium"
+          >
+            <ChevronLeft size={20} />
+            Quit Case
+          </button>
+          <div className="flex items-center gap-4">
+            <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-yellow-500" />
+              <span className="font-bold text-slate-700">Score: {score}</span>
+            </div>
+            <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100">
+              <span className="font-bold text-slate-700">Q: {currentQuestionIndex + 1}/{questions.length}</span>
+            </div>
+          </div>
+        </div>
         
-        <GlassCard className="p-8 md:p-12 mb-8 border-white/60 bg-slate-800/50">
-          <div className="flex items-center gap-4 mb-8">
-            <span className="text-2xl font-black text-white">
-              {currentQuestionIndex + 1}. {currentQuestion.scenario}
-            </span>
+        <GlassCard className="p-8 md:p-12 mb-8 border-white/60">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <FileText className="w-6 h-6 text-blue-600" />
+            </div>
+            <span className="text-sm font-bold text-blue-600 uppercase tracking-widest">Case Scenario</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <h3 className="text-2xl md:text-3xl font-bold text-slate-800 mb-12 leading-relaxed">
+            "{currentQuestion.scenario}"
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {currentQuestion.options.map((option) => (
               <motion.button
                 key={option.id}
-                whileHover={{ y: -8, shadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ x: 8 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => handleOptionSelect(option.id)}
-                className={`p-8 rounded-2xl border-4 transition-all duration-300 flex items-center justify-center text-center min-h-[200px] ${
+                className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 flex items-center gap-4 ${
                   selectedOption === option.id 
-                    ? (option.id === currentQuestion.correctId ? 'border-emerald-500 bg-emerald-500/20' : 'border-red-500 bg-red-500/20')
-                    : 'border-transparent bg-emerald-700/40 hover:border-blue-500'
+                    ? (option.id === currentQuestion.correctId ? 'border-emerald-500 bg-emerald-50' : 'border-red-500 bg-red-50')
+                    : 'border-slate-100 bg-white hover:border-blue-500 hover:bg-blue-50/30'
                 }`}
               >
-                <span className="text-xl font-bold text-white leading-tight">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg ${
+                  selectedOption === option.id
+                    ? (option.id === currentQuestion.correctId ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white')
+                    : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {option.id}
+                </div>
+                <span className="text-xl font-bold text-slate-700">
                   {option.label}
                 </span>
               </motion.button>
             ))}
           </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-8 border-t border-white/10">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-yellow-500" />
-                <span className="font-black text-white uppercase tracking-widest">Score: {score}</span>
-              </div>
-              <div className="font-black text-blue-400 uppercase tracking-widest">
-                {difficulty} - Set {setNumber}
-              </div>
-            </div>
-            <div className="font-black text-white uppercase tracking-widest">
-              Question {currentQuestionIndex + 1}/{questions.length}
-            </div>
-          </div>
-          
-          <div className="mt-6 w-full h-2 bg-slate-700 rounded-full overflow-hidden">
-            <motion.div 
-              className="h-full bg-amber-400"
-              initial={{ width: 0 }}
-              animate={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
-            />
-          </div>
         </GlassCard>
+
+        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+          <motion.div 
+            className="h-full bg-blue-600"
+            initial={{ width: 0 }}
+            animate={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+          />
+        </div>
       </div>
     );
   }
@@ -341,18 +530,17 @@ export default function SourceDetectives() {
 
     return (
       <div className="max-w-3xl mx-auto py-12 px-4">
-        <GameTitle />
         <GlassCard className="p-8 md:p-12 border-white/60 text-center">
           <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isCorrect ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
             {isCorrect ? <CheckCircle2 size={48} /> : <XCircle size={48} />}
           </div>
           
           <h2 className={`text-4xl font-black mb-4 tracking-tight ${isCorrect ? 'text-emerald-600' : 'text-red-600'}`}>
-            {isCorrect ? 'Excellent!' : 'Incorrect'}
+            {isCorrect ? 'Brilliant!' : 'Not Quite'}
           </h2>
 
           <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 mb-8 text-left">
-            <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-2">Detective's Insight</p>
+            <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-2">The Reason</p>
             <p className="text-slate-700 text-lg leading-relaxed font-medium">
               {questions[currentQuestionIndex].explanation}
             </p>
@@ -375,7 +563,6 @@ export default function SourceDetectives() {
     const percentage = (score / questions.length) * 100;
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center p-8">
-        <GameTitle />
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -422,9 +609,8 @@ export default function SourceDetectives() {
   if (gameState === 'scoreboard') {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center p-8">
-        <GameTitle />
-        <GlassCard className="w-full max-w-2xl p-10 border-white/60">
-          <h2 className="text-3xl font-black text-slate-900 mb-8 text-center uppercase tracking-widest">Scoreboard</h2>
+        <GlassCard className="w-full max-w-md p-10 border-white/60">
+          <h2 className="text-3xl font-black text-slate-900 mb-8 text-center">Scoreboard</h2>
           
           <div className="max-h-[400px] overflow-y-auto pr-2 space-y-4 mb-10 custom-scrollbar">
             {Object.keys(highScores).length > 0 ? (
@@ -441,7 +627,7 @@ export default function SourceDetectives() {
 
           <button
             onClick={() => setGameState('menu')}
-            className="w-full py-4 bg-orange-500 text-white rounded-2xl font-bold hover:bg-orange-600 transition-all active:scale-95"
+            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all active:scale-95"
           >
             Back to Menu
           </button>
