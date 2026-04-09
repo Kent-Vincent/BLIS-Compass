@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -39,6 +40,15 @@ const TakeExamPage: React.FC = () => {
   const [score, setScore] = useState(0);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [showNav, setShowNav] = useState(true);
+  const [activeSection, setActiveSection] = useState(0);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+
+  const sectionSize = 100;
+  const sections = Array.from({ length: 6 }, (_, i) => ({
+    label: `${i * sectionSize + 1}-${(i + 1) * sectionSize}`,
+    start: i * sectionSize,
+    end: (i + 1) * sectionSize
+  }));
 
   const fetchExamData = useCallback(async (retryCount = 0) => {
     try {
@@ -224,6 +234,12 @@ const TakeExamPage: React.FC = () => {
   const handleSubmit = async () => {
     if (isFinished) return;
     
+    // If not already in review mode, show the review modal first
+    if (!showReviewModal) {
+      setShowReviewModal(true);
+      return;
+    }
+
     let correctCount = 0;
     items.forEach(item => {
       if (answers[item.id] === item.correct_answer) {
@@ -233,6 +249,7 @@ const TakeExamPage: React.FC = () => {
 
     setScore(correctCount);
     setIsFinished(true);
+    setShowReviewModal(false);
     await saveProgress(true, correctCount);
   };
 
@@ -503,39 +520,57 @@ const TakeExamPage: React.FC = () => {
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="w-full lg:w-96 space-y-6"
+            className="w-full lg:w-[450px] space-y-6"
           >
-            <GlassCard className="p-6 border-slate-200 sticky top-28">
+            <GlassCard className="p-8 border-slate-200 sticky top-28 shadow-xl">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-slate-800 uppercase tracking-widest text-sm">Question Navigation</h3>
-                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">
                   {Object.keys(answers).length} / {items.length} Answered
                 </span>
               </div>
 
+              {/* Pagination Tabs */}
+              <div className="flex flex-wrap gap-2 mb-8">
+                {sections.map((section, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveSection(idx)}
+                    className={`px-3 py-2 text-[11px] font-bold rounded-xl transition-all ${
+                      activeSection === idx 
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    {section.label}
+                  </button>
+                ))}
+              </div>
+
               {/* Legend */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                  <div className="w-3 h-3 rounded-sm bg-white border border-slate-200" />
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                  <div className="w-4 h-4 rounded-md bg-white border border-slate-200" />
                   Unanswered
                 </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                  <div className="w-3 h-3 rounded-sm bg-indigo-600" />
+                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                  <div className="w-4 h-4 rounded-md bg-indigo-600 shadow-sm" />
                   Answered
                 </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                  <div className="w-3 h-3 rounded-sm bg-orange-500" />
+                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                  <div className="w-4 h-4 rounded-md bg-orange-500 shadow-sm" />
                   Flagged
                 </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
-                  <div className="w-3 h-3 rounded-sm border-2 border-indigo-600" />
+                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
+                  <div className="w-4 h-4 rounded-md border-2 border-indigo-600" />
                   Current
                 </div>
               </div>
 
               <div className="h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                <div className="grid grid-cols-5 gap-2">
-                  {items.map((item, idx) => {
+                <div className="grid grid-cols-5 gap-3">
+                  {items.slice(sections[activeSection].start, sections[activeSection].end).map((item, localIdx) => {
+                    const idx = sections[activeSection].start + localIdx;
                     const isAnswered = !!answers[item.id];
                     const isFlagged = !!flagged[item.id];
                     const isCurrent = currentIndex === idx;
@@ -567,11 +602,11 @@ const TakeExamPage: React.FC = () => {
                       <button
                         key={item.id}
                         onClick={() => setCurrentIndex(idx)}
-                        className={`aspect-square rounded-lg flex items-center justify-center font-bold text-[10px] transition-all border relative ${bgColor} ${textColor} ${borderColor} hover:scale-105 active:scale-95`}
+                        className={`aspect-square rounded-xl flex items-center justify-center font-bold text-xs transition-all border relative shadow-sm ${bgColor} ${textColor} ${borderColor} hover:scale-105 active:scale-95`}
                       >
                         {idx + 1}
                         {isFlagged && (
-                          <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white shadow-sm" />
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-white shadow-md" />
                         )}
                       </button>
                     );
@@ -582,6 +617,146 @@ const TakeExamPage: React.FC = () => {
           </motion.div>
         )}
       </div>
+
+      {/* Review Modal */}
+      {showReviewModal && createPortal(
+        <AnimatePresence>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-white/20"
+            >
+              <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">Review Your Answers</h2>
+                  <p className="text-slate-500 text-sm font-medium">
+                    Please check for any unanswered questions before submitting.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {Object.keys(answers).length} / {items.length}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Questions Answered</div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Unanswered Section */}
+                  <div>
+                    <h3 className="flex items-center gap-2 text-rose-600 font-bold uppercase tracking-widest text-xs mb-4">
+                      <XCircle size={16} />
+                      Unanswered ({items.length - Object.keys(answers).length})
+                    </h3>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
+                      {items.map((item, idx) => !answers[item.id] && (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setCurrentIndex(idx);
+                            setActiveSection(Math.floor(idx / sectionSize));
+                            setShowReviewModal(false);
+                          }}
+                          className="aspect-square rounded-lg border border-rose-200 bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs hover:bg-rose-100 transition-all"
+                        >
+                          {idx + 1}
+                        </button>
+                      ))}
+                      {items.length === Object.keys(answers).length && (
+                        <div className="col-span-full py-4 text-center text-slate-400 text-sm font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          All questions answered!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Flagged Section */}
+                  <div>
+                    <h3 className="flex items-center gap-2 text-orange-600 font-bold uppercase tracking-widest text-xs mb-4">
+                      <Flag size={16} />
+                      Flagged for Review ({Object.keys(flagged).filter(k => flagged[k]).length})
+                    </h3>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
+                      {items.map((item, idx) => flagged[item.id] && (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setCurrentIndex(idx);
+                            setActiveSection(Math.floor(idx / sectionSize));
+                            setShowReviewModal(false);
+                          }}
+                          className="aspect-square rounded-lg border border-orange-200 bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-xs hover:bg-orange-100 transition-all"
+                        >
+                          {idx + 1}
+                        </button>
+                      ))}
+                      {Object.keys(flagged).filter(k => flagged[k]).length === 0 && (
+                        <div className="col-span-full py-4 text-center text-slate-400 text-sm font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          No questions flagged.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-12">
+                  <h3 className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-4">Quick Navigation (All Questions)</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {sections.map((section, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="text-[10px] font-bold text-slate-400 ml-1">{section.label}</div>
+                        <div className="flex flex-wrap gap-1">
+                          {items.slice(section.start, section.end).map((item, localIdx) => {
+                            const globalIdx = section.start + localIdx;
+                            const isAnswered = !!answers[item.id];
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => {
+                                  setCurrentIndex(globalIdx);
+                                  setActiveSection(idx);
+                                  setShowReviewModal(false);
+                                }}
+                                className={`w-7 h-7 rounded flex items-center justify-center text-[9px] font-bold transition-all ${
+                                  isAnswered 
+                                    ? 'bg-indigo-600 text-white' 
+                                    : 'bg-slate-100 text-slate-400 border border-slate-200 hover:bg-slate-200'
+                                }`}
+                              >
+                                {globalIdx + 1}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 border-t border-slate-100 flex gap-4 bg-slate-50">
+                <button
+                  onClick={() => setShowReviewModal(false)}
+                  className="flex-1 py-4 px-6 rounded-2xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-all"
+                >
+                  Back to Exam
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  className="flex-1 py-4 px-6 rounded-2xl font-bold text-white bg-emerald-600 shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                >
+                  Confirm & Submit
+                  <CheckCircle2 size={20} />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
