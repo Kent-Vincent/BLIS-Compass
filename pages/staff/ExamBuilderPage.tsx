@@ -17,6 +17,7 @@ import {
   Download
 } from 'lucide-react';
 import Papa from 'papaparse';
+import mammoth from 'mammoth';
 import { supabase } from '../../src/lib/supabase';
 import { MockExam, MockExamItem, PracticeSubject } from '../../types';
 import GlassCard from '../../components/GlassCard';
@@ -36,10 +37,12 @@ const ExamBuilderPage: React.FC = () => {
   const [showNavigator, setShowNavigator] = useState(true);
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'complete' | 'empty'>('all');
-  const [bulkRange, setBulkRange] = useState({ start: 1, end: 100, subjectId: '' });
+  const [bulkRange, setBulkRange] = useState<{start: number | '', end: number | '', subjectId: string}>({ start: 1, end: 100, subjectId: '' });
   const [showBulkTool, setShowBulkTool] = useState(false);
   const [activeSection, setActiveSection] = useState(0); // 0 = 1-100, 1 = 101-200, etc.
   const [jumpInput, setJumpInput] = useState('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const currentItem = items[selectedIndex];
@@ -81,7 +84,7 @@ const ExamBuilderPage: React.FC = () => {
       const { data: examData, error: examError } = await supabase
         .from('mock_exams')
         .select('*')
-        .eq(id ? 'id' : '', id || '')
+        .eq('id', id)
         .single();
 
       if (examError) throw examError;
@@ -140,94 +143,213 @@ const ExamBuilderPage: React.FC = () => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], ...updates };
     setItems(newItems);
+    setHasUnsavedChanges(true);
   };
 
   const handleBulkAssign = () => {
     if (!bulkRange.subjectId) return;
+    const start = Number(bulkRange.start) || 1;
+    const end = Number(bulkRange.end) || 600;
     const newItems = [...items];
-    for (let i = bulkRange.start - 1; i < bulkRange.end; i++) {
+    for (let i = start - 1; i < end; i++) {
       if (newItems[i]) {
         newItems[i] = { ...newItems[i], subject_id: bulkRange.subjectId };
       }
     }
     setItems(newItems);
+    setHasUnsavedChanges(true);
     setShowBulkTool(false);
   };
 
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const data = results.data as any[];
-        
-        if (data.length === 0) {
-          setError('The CSV file is empty.');
-          return;
-        }
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    
+    try {
+      let rawData: any[] = [];
 
-        // Validate required columns
-        const requiredCols = ['question', 'choice_a', 'choice_b', 'choice_c', 'choice_d', 'correct_answer'];
-        const headers = Object.keys(data[0]).map(h => h.toLowerCase());
-        const missing = requiredCols.filter(col => !headers.includes(col));
-
-        if (missing.length > 0) {
-          setError(`Missing columns: ${missing.join(', ')}. Please use the template.`);
-          return;
-        }
-
-        const importedItems = data.slice(0, 600).map((row, idx) => {
-          // Find subject ID by name if provided
-          let subjectId = undefined;
-          if (row.subject_name || row.subject) {
-            const sName = (row.subject_name || row.subject).toLowerCase().trim();
-            const match = subjects.find(s => s.name.toLowerCase() === sName);
-            if (match) subjectId = match.id;
-          }
-
-          return {
-            exam_id: id!,
-            item_no: idx + 1,
-            question: row.question || '',
-            choice_a: row.choice_a || '',
-            choice_b: row.choice_b || '',
-            choice_c: row.choice_c || '',
-            choice_d: row.choice_d || '',
-            correct_answer: (row.correct_answer || 'a').toLowerCase().trim(),
-            subject_id: subjectId
-          } as MockExamItem;
+      if (extension === 'csv') {
+        rawData = await new Promise((resolve, reject) => {
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => resolve(results.data),
+            error: (err) => reject(err)
+          });
         });
-
-        // Fill remaining with empty if less than 600
-        const finalItems = [...importedItems];
-        if (finalItems.length < 600) {
-          for (let i = finalItems.length; i < 600; i++) {
-            finalItems.push({
-              exam_id: id!,
-              item_no: i + 1,
-              question: '',
-              choice_a: '',
-              choice_b: '',
-              choice_c: '',
-              choice_d: '',
-              correct_answer: 'a',
-            } as MockExamItem);
+      } else if (extension === 'json') {
+        const text = await file.text();
+        rawData = JSON.parse(text);
+      } else if (extension === 'xml') {
+        const text = await file.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, "text/xml");
+        const items = xmlDoc.getElementsByTagName("item");
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const getVal = (tag: string) => item.getElementsByTagName(tag)[0]?.textContent || '';
+          
+          // Handle nested choices structure: <choices><choice letter="A">...</choice></choices>
+          let choiceA = getVal('choice_a');
+          let choiceB = getVal('choice_b');
+          let choiceC = getVal('choice_c');
+          let choiceD = getVal('choice_d');
+          
+          if (!choiceA) {
+            const choices = item.getElementsByTagName("choice");
+            for (let j = 0; j < choices.length; j++) {
+              const c = choices[j];
+              const letter = c.getAttribute("letter")?.toUpperCase();
+              if (letter === 'A') choiceA = c.textContent || '';
+              else if (letter === 'B') choiceB = c.textContent || '';
+              else if (letter === 'C') choiceC = c.textContent || '';
+              else if (letter === 'D') choiceD = c.textContent || '';
+            }
           }
+
+          rawData.push({
+            number: getVal('number'),
+            question: getVal('question'),
+            choice_a: choiceA,
+            choice_b: choiceB,
+            choice_c: choiceC,
+            choice_d: choiceD,
+            correct_answer: getVal('correct_answer'),
+            subject_name: getVal('subject_name') || getVal('subject')
+          });
+        }
+      } else if (extension === 'docx') {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        const text = result.value;
+        
+        // Improved Regex Parser for Docx
+        // Matches "1. ", "1) ", " 1. ", etc. at start of line or start of text
+        // We use a lookahead to keep the number if we want, but here we just split
+        // and handle the first element which might be empty if file starts with a number.
+        const questionBlocks = text.split(/(?:\r?\n|^)\s*\d+[\.\)]\s+/).filter(b => b.trim());
+        
+        if (questionBlocks.length === 0) {
+          throw new Error('No questions found. Ensure your DOCX uses "1. Question" or "1) Question" format.');
         }
 
-        setItems(finalItems);
-        setSelectedIndex(0);
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      },
-      error: (err) => {
-        setError(`Error parsing CSV: ${err.message}`);
+        rawData = questionBlocks.map(block => {
+          const lines = block.split('\n').map(l => l.trim()).filter(l => l);
+          const question = lines[0] || '';
+          
+          // Find choices with more flexible regex
+          const choiceA = lines.find(l => l.match(/^[A][\.\)]/i))?.replace(/^[A][\.\)]\s*/i, '') || '';
+          const choiceB = lines.find(l => l.match(/^[B][\.\)]/i))?.replace(/^[B][\.\)]\s*/i, '') || '';
+          const choiceC = lines.find(l => l.match(/^[C][\.\)]/i))?.replace(/^[C][\.\)]\s*/i, '') || '';
+          const choiceD = lines.find(l => l.match(/^[D][\.\)]/i))?.replace(/^[D][\.\)]\s*/i, '') || '';
+          
+          // Find answer with more flexible regex
+          const ansMatch = block.match(/(?:Ans|Answer|Correct|Key):\s*([A-D])/i);
+          const correctAns = ansMatch ? ansMatch[1].toLowerCase() : 'a';
+          
+          return {
+            question,
+            choice_a: choiceA,
+            choice_b: choiceB,
+            choice_c: choiceC,
+            choice_d: choiceD,
+            correct_answer: correctAns
+          };
+        });
+      } else {
+        throw new Error(`Unsupported file format (.${extension}). Please use CSV, JSON, XML, or DOCX.`);
       }
-    });
+
+      if (!Array.isArray(rawData) || rawData.length === 0) {
+        throw new Error(`The ${extension.toUpperCase()} file was parsed but no questions were found. Check the file structure.`);
+      }
+
+      const importedItems = rawData.slice(0, 600).map((row, idx) => {
+        // Highly Robust Subject Matching (Fuzzy + Word-based)
+        let subjectId = undefined;
+        const sInputRaw = (row.subject_name || row.subject || row.category || '').toLowerCase().trim();
+        
+        if (sInputRaw) {
+          const normalize = (str: string) => str.replace(/&/g, 'and').replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+          const nInput = normalize(sInputRaw);
+          
+          // 1. Try exact match on normalized strings
+          let match = subjects.find(s => normalize(s.name.toLowerCase()) === nInput);
+          
+          // 2. Try includes match on normalized strings
+          if (!match) {
+            match = subjects.find(s => {
+              const nName = normalize(s.name.toLowerCase());
+              return nName.includes(nInput) || nInput.includes(nName);
+            });
+          }
+
+          // 3. Word-based match (at least 1 significant word match)
+          if (!match) {
+            const stopWords = ['and', 'the', 'for', 'with', 'from', 'abstraction', 'abstracting'];
+            const inputWords = nInput.split(/\s+/).filter(w => w.length > 3 && !stopWords.includes(w));
+            
+            // Special case for "Indexing"
+            const isIndexing = nInput.includes('indexing');
+            const isSelection = nInput.includes('selection');
+            
+            match = subjects.find(s => {
+              const nName = normalize(s.name.toLowerCase());
+              const nNameWords = nName.split(/\s+/);
+              
+              if (isIndexing && nName.includes('indexing')) return true;
+              if (isSelection && nName.includes('selection')) return true;
+              
+              return inputWords.some(word => nNameWords.includes(word));
+            });
+          }
+          
+          if (match) subjectId = match.id;
+        }
+
+        return {
+          exam_id: id!,
+          item_no: parseInt(row.number || row.item_no || row.no) || idx + 1,
+          question: row.question || '',
+          choice_a: row.choice_a || row.a || '',
+          choice_b: row.choice_b || row.b || '',
+          choice_c: row.choice_c || row.c || '',
+          choice_d: row.choice_d || row.d || '',
+          correct_answer: (row.correct_answer || row.answer || 'a').toLowerCase().trim().charAt(0),
+          subject_id: subjectId
+        } as MockExamItem;
+      });
+
+      // Fill remaining with empty if less than 600
+      const finalItems = [...importedItems];
+      if (finalItems.length < 600) {
+        for (let i = finalItems.length; i < 600; i++) {
+          finalItems.push({
+            exam_id: id!,
+            item_no: i + 1,
+            question: '',
+            choice_a: '',
+            choice_b: '',
+            choice_c: '',
+            choice_d: '',
+            correct_answer: 'a',
+          } as MockExamItem);
+        }
+      }
+
+      setItems(finalItems);
+      setSelectedIndex(0);
+      setHasUnsavedChanges(true);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+    } catch (err: any) {
+      console.error('Import error:', err);
+      setError(err.message || 'Failed to import file');
+    }
   };
 
   const downloadTemplate = () => {
@@ -259,14 +381,18 @@ const ExamBuilderPage: React.FC = () => {
 
       if (deleteError) throw deleteError;
 
-      // 2. Insert new items (only those that have content, or all 600?)
-      // Usually we want all 600 for a mock board.
-      // Batch insert to avoid payload size limits if needed, but 600 is small enough.
-      const { error: insertError } = await supabase
-        .from('mock_exam_items')
-        .insert(items.map(({ id: _id, created_at: _ca, ...rest }) => rest));
+      // 2. Insert new items in batches of 100 to avoid payload limits
+      const batchSize = 100;
+      const dataToInsert = items.map(({ id: _id, created_at: _ca, ...rest }) => rest);
+      
+      for (let i = 0; i < dataToInsert.length; i += batchSize) {
+        const batch = dataToInsert.slice(i, i + batchSize);
+        const { error: insertError } = await supabase
+          .from('mock_exam_items')
+          .insert(batch);
 
-      if (insertError) throw insertError;
+        if (insertError) throw insertError;
+      }
 
       // 3. Update total_items in mock_exams
       const { error: updateError } = await supabase
@@ -276,6 +402,7 @@ const ExamBuilderPage: React.FC = () => {
 
       if (updateError) throw updateError;
 
+      setHasUnsavedChanges(false);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -283,6 +410,25 @@ const ExamBuilderPage: React.FC = () => {
       setError(err.message || 'Failed to save exam');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Prevent accidental navigation
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const handleBack = (e: React.MouseEvent) => {
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      setShowExitConfirm(true);
     }
   };
 
@@ -333,7 +479,11 @@ const ExamBuilderPage: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center bg-white border-b border-slate-200 px-8 py-4 z-20">
         <div className="flex items-center gap-4">
-          <Link to="/staff/mock-exams" className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
+          <Link 
+            to="/staff/mock-exams" 
+            onClick={handleBack}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+          >
             <ArrowLeft size={24} />
           </Link>
           <div>
@@ -353,17 +503,17 @@ const ExamBuilderPage: React.FC = () => {
           <input 
             type="file" 
             ref={fileInputRef} 
-            onChange={handleImportCSV} 
-            accept=".csv" 
+            onChange={handleImportFile} 
+            accept=".csv,.json,.xml,.docx" 
             className="hidden" 
           />
           <button 
             onClick={() => fileInputRef.current?.click()}
             className="p-2.5 bg-white text-slate-600 border border-slate-200 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all text-sm"
-            title="Import from CSV"
+            title="Import from CSV, JSON, XML, or DOCX"
           >
             <Upload size={18} />
-            <span className="hidden md:inline">Import CSV</span>
+            <span className="hidden md:inline">Import File</span>
           </button>
           <button 
             onClick={downloadTemplate}
@@ -479,18 +629,48 @@ const ExamBuilderPage: React.FC = () => {
                             <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">From</label>
                             <input 
                               type="number" 
-                              className="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 outline-none"
+                              min="1"
+                              max="600"
+                              className="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
                               value={bulkRange.start}
-                              onChange={e => setBulkRange({ ...bulkRange, start: parseInt(e.target.value) || 1 })}
+                              onKeyDown={(e) => {
+                                if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
+                              }}
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                  setBulkRange({ ...bulkRange, start: '' });
+                                  return;
+                                }
+                                const num = parseInt(val);
+                                if (!isNaN(num)) {
+                                  setBulkRange({ ...bulkRange, start: Math.min(Math.max(num, 1), 600) });
+                                }
+                              }}
                             />
                           </div>
                           <div>
                             <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">To</label>
                             <input 
                               type="number" 
-                              className="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 outline-none"
+                              min="1"
+                              max="600"
+                              className="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
                               value={bulkRange.end}
-                              onChange={e => setBulkRange({ ...bulkRange, end: parseInt(e.target.value) || 600 })}
+                              onKeyDown={(e) => {
+                                if (['e', 'E', '+', '-', '.'].includes(e.key)) e.preventDefault();
+                              }}
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                  setBulkRange({ ...bulkRange, end: '' });
+                                  return;
+                                }
+                                const num = parseInt(val);
+                                if (!isNaN(num)) {
+                                  setBulkRange({ ...bulkRange, end: Math.min(Math.max(num, 1), 600) });
+                                }
+                              }}
                             />
                           </div>
                         </div>
@@ -502,13 +682,13 @@ const ExamBuilderPage: React.FC = () => {
                           <option value="">Select Subject</option>
                           {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
-                        <button 
-                          onClick={handleBulkAssign}
-                          disabled={!bulkRange.subjectId}
-                          className="w-full py-2 bg-indigo-600 text-white text-[10px] font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all"
-                        >
-                          Apply to {bulkRange.end - bulkRange.start + 1} Questions
-                        </button>
+                          <button 
+                            onClick={handleBulkAssign}
+                            disabled={!bulkRange.subjectId || bulkRange.start === '' || bulkRange.end === ''}
+                            className="w-full py-2 bg-indigo-600 text-white text-[10px] font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all"
+                          >
+                            Apply to {(Number(bulkRange.end) || 0) - (Number(bulkRange.start) || 0) + 1} Questions
+                          </button>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -729,6 +909,45 @@ const ExamBuilderPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Exit Confirmation Modal */}
+      <AnimatePresence>
+        {showExitConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                <AlertCircle size={32} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-800 text-center mb-2">Unsaved Changes</h2>
+              <p className="text-slate-500 text-center mb-8">
+                You have imported or modified questions. If you leave now, these changes will be lost. Are you sure you want to exit?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+                >
+                  Stay & Edit
+                </button>
+                <button
+                  onClick={() => {
+                    setHasUnsavedChanges(false);
+                    navigate('/staff/mock-exams');
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-all shadow-lg shadow-red-100"
+                >
+                  Exit Anyway
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
