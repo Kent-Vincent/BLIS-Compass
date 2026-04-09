@@ -57,21 +57,18 @@ const MockExamsPage: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('mock_exams')
-        .select(`
-          *,
-          mock_exam_items (count)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // Transform data to include item_count
-      const examsWithCount = (data || []).map(exam => ({
+      // Transform data to ensure completed_count is at least 0
+      const transformedExams = (data || []).map(exam => ({
         ...exam,
-        item_count: exam.mock_exam_items?.[0]?.count || 0
+        completed_count: exam.completed_count || 0
       }));
       
-      setExams(examsWithCount);
+      setExams(transformedExams);
     } catch (err) {
       console.error('Error fetching exams:', err);
     } finally {
@@ -135,11 +132,11 @@ const MockExamsPage: React.FC = () => {
 
   const togglePublish = async (exam: any) => {
     // Check if it has 600 questions before publishing
-    if (!exam.is_published && exam.item_count !== 600) {
+    if (!exam.is_published && exam.completed_count !== 600) {
       setWarningModal({
         isOpen: true,
         examTitle: exam.title,
-        currentCount: exam.item_count
+        currentCount: exam.completed_count
       });
       return;
     }
@@ -240,8 +237,8 @@ const MockExamsPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3 text-sm text-slate-500">
                     <ListChecks size={16} className="text-slate-400" />
-                    <span className={(exam as any).item_count !== 600 ? 'text-red-500 font-bold' : ''}>
-                      {(exam as any).item_count} / {exam.total_items} Questions
+                    <span className={(exam.completed_count || 0) !== exam.total_items ? 'text-rose-500 font-bold' : 'text-emerald-600 font-bold'}>
+                      {exam.completed_count || 0} / {exam.total_items} Questions
                     </span>
                   </div>
                 </div>

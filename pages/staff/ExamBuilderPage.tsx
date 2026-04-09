@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -394,10 +395,14 @@ const ExamBuilderPage: React.FC = () => {
         if (insertError) throw insertError;
       }
 
-      // 3. Update total_items in mock_exams
+      // 3. Update total_items and completed_count in mock_exams
+      const completedCount = items.filter(i => i.question && i.choice_a).length;
       const { error: updateError } = await supabase
         .from('mock_exams')
-        .update({ total_items: items.length })
+        .update({ 
+          total_items: items.length,
+          completed_count: completedCount
+        })
         .eq('id', id);
 
       if (updateError) throw updateError;

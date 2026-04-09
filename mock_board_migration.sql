@@ -6,6 +6,9 @@ ALTER TABLE mock_exams ADD COLUMN IF NOT EXISTS exam_type TEXT DEFAULT 'regular'
 -- 2. Add subject_id to mock_exam_items
 ALTER TABLE mock_exam_items ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES practice_subjects(id);
 
+-- 2.1 Add completed_count to mock_exams to track filled questions
+ALTER TABLE mock_exams ADD COLUMN IF NOT EXISTS completed_count INTEGER DEFAULT 0;
+
 -- 3. Create mock_exam_attempts table for resumable sessions and results
 CREATE TABLE IF NOT EXISTS mock_exam_attempts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

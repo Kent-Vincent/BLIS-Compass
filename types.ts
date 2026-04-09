@@ -29,6 +29,7 @@ export interface MockExam {
   title: string;
   duration_minutes: number;
   total_items: number;
+  completed_count: number;
   created_by: string;
   is_published: boolean;
   created_at: string;
