@@ -277,60 +277,83 @@ const TakeExamPage: React.FC = () => {
     const percentage = Math.round((score / items.length) * 100);
     const passed = percentage >= 75;
 
-    // Calculate category breakdown
+    // Calculate category breakdown with weights
+    const CATEGORY_WEIGHTS: Record<string, number> = {
+      "Library Organization and Management": 20,
+      "Library Organization & Management": 20,
+      "Reference, Bibliography, and User Services": 20,
+      "Reference, Bibliography & User Services": 20,
+      "Cataloging and Classification": 20,
+      "Cataloging & Classification": 20,
+      "Indexing and Abstracting": 15,
+      "Indexing & Abstracting": 15,
+      "Selection and Acquisition of Multi-Media Sources": 15,
+      "Selection & Acquisition of Library Materials": 15,
+      "Information Technology": 10
+    };
+
     const breakdown = subjects.map(sub => {
       const subItems = items.filter(item => item.subject_id === sub.id);
       if (subItems.length === 0) return null;
       const correct = subItems.filter(item => answers[item.id] === item.correct_answer).length;
+      const weight = CATEGORY_WEIGHTS[sub.name] || 0;
+      const contribution = weight > 0 ? (correct / subItems.length) * weight : 0;
+      
       return {
         name: sub.name,
         score: correct,
         total: subItems.length,
+        weight: weight,
+        contribution: contribution % 1 === 0 ? contribution.toString() : contribution.toFixed(1),
         percentage: Math.round((correct / subItems.length) * 100)
       };
     }).filter(Boolean);
 
     return (
-      <div className="max-w-3xl mx-auto py-12">
+      <div className="max-w-4xl mx-auto py-8 px-4">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <GlassCard className="p-12 text-center border-white/60">
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl ${passed ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-              {passed ? <Trophy size={48} /> : <XCircle size={48} />}
+          <GlassCard className="p-6 md:p-10 text-center border-white/60 shadow-2xl">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl ${passed ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+              {passed ? <Trophy size={40} /> : <XCircle size={40} />}
             </div>
             
-            <h2 className="text-4xl font-bold text-slate-800 mb-2">Exam Result</h2>
+            <h2 className="text-3xl font-bold text-slate-800 mb-1">Exam Result</h2>
             <p className="text-slate-500 mb-8 font-medium">Simulation Complete</p>
 
-            <div className="grid grid-cols-2 gap-6 mb-10">
-              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Your Score</p>
-                <p className="text-3xl font-bold text-slate-800">{score} / {items.length}</p>
-              </div>
-              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Percentage</p>
-                <p className="text-3xl font-bold text-slate-800">{percentage}%</p>
+            <div className="flex justify-center mb-10">
+              <div className="bg-white/50 backdrop-blur-sm p-8 rounded-3xl border border-white/60 shadow-sm min-w-[240px]">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Overall Percentage</p>
+                <p className={`text-5xl font-black ${passed ? 'text-emerald-600' : 'text-slate-800'}`}>{percentage}%</p>
               </div>
             </div>
 
             {breakdown.length > 0 && (
               <div className="mb-10 text-left">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 ml-1">Category Breakdown</h3>
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {breakdown.map((item: any) => (
-                    <div key={item.name} className="bg-white border border-slate-100 p-4 rounded-2xl">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-bold text-slate-700">{item.name}</span>
-                        <span className="text-sm font-bold text-slate-900">{item.score} / {item.total} ({item.percentage}%)</span>
+                    <div key={item.name} className="bg-white/40 backdrop-blur-sm border border-white/60 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
+                      <div className="flex justify-between items-start mb-2 gap-4">
+                        <span className="text-sm font-bold text-slate-700 leading-tight">{item.name}</span>
+                        <span className="text-xs font-black text-indigo-600 whitespace-nowrap bg-indigo-50 px-2 py-1 rounded-lg">
+                          {item.contribution}% / {item.weight}%
+                        </span>
                       </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-1000 ${item.percentage >= 75 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                          style={{ width: `${item.percentage}%` }}
-                        />
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-2 bg-slate-100/50 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-1000 ${item.percentage >= 75 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                            style={{ width: `${item.percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 w-8 text-right">{item.percentage}%</span>
                       </div>
+                      <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                        {item.contribution}% correct answer out of {item.weight}%
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -343,16 +366,16 @@ const TakeExamPage: React.FC = () => {
                 : "Don't give up! Review your weak spots and try again to improve your score."}
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               <button 
                 onClick={() => navigate('/student/mock-exams')}
-                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all"
+                className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all"
               >
                 Back to Mock Exams
               </button>
               <button 
                 onClick={() => window.location.reload()}
-                className="w-full py-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+                className="flex-1 py-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all"
               >
                 Retake Exam
               </button>
