@@ -17,11 +17,12 @@ import { NavLink } from 'react-router-dom';
 import Logo from './Logo';
 
 const StaffSidebar: React.FC = () => {
-  const { signOut, signingOut } = useAuth();
+  const { profile, signOut, signingOut } = useAuth();
+  const isAdmin = profile?.role === 'admin';
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/staff/overview' },
-    { icon: Users, label: 'Manage Accounts', path: '/staff/accounts' },
+    { icon: Users, label: isAdmin ? 'Manage Accounts' : 'Manage Students', path: '/staff/accounts' },
     { icon: BookOpen, label: 'Manage Questions', path: '/staff/questions' },
     { icon: BookOpen, label: 'Practice Sets', path: '/staff/practice' },
     { icon: FileText, label: 'Mock Exams', path: '/staff/mock-exams' },

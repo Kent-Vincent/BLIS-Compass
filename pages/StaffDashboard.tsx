@@ -12,8 +12,11 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Overview: React.FC = () => {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+
   const stats = [
-    { label: 'Total Accounts', value: '1,284', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: isAdmin ? 'Total Accounts' : 'Total Students', value: '1,284', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Question Bank', value: '4,520', icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { label: 'Active Exams', value: '12', icon: GraduationCap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Avg. Score', value: '78%', icon: TrendingUp, color: 'text-orange-600', bg: 'bg-orange-50' },

@@ -15,15 +15,14 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { supabase } from '../../src/lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../../src/lib/supabase';
 import { UserRole } from '../../types';
 import GlassCard from '../../components/GlassCard';
 import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '../../context/AuthContext';
 
 // Secondary client for creating users without logging out the current admin
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ngkpxpjjcjinltyxeomg.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_fpbr8oyt2xAQy_3n0vx3eA_Mh7au0UX';
-
+// Using the same validated URL and Key from the main supabase lib
 const secondarySupabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: false,
@@ -35,14 +34,18 @@ const secondarySupabase = createClient(supabaseUrl, supabaseAnonKey, {
 interface Profile {
   id: string;
   full_name: string;
-  email: string;
+  email?: string;
   role: UserRole;
-  created_at: string;
+  updated_at: string;
 }
 
 const AccountManager: React.FC = () => {
+  const { profile: currentUser } = useAuth();
+  const isAdmin = currentUser?.role === UserRole.ADMIN;
+  
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -61,15 +64,28 @@ const AccountManager: React.FC = () => {
   const fetchProfiles = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      setError(null);
+      // Try fetching with updated_at since created_at might be missing
+      const { data, error: fetchError } = await supabase
         .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('id, full_name, role, updated_at')
+        .order('updated_at', { ascending: false });
 
-      if (error) throw error;
-      setProfiles(data || []);
-    } catch (err) {
+      if (fetchError) {
+        console.error('Error fetching profiles with updated_at:', fetchError);
+        // Fallback to no ordering if updated_at also fails
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('profiles')
+          .select('id, full_name, role');
+        
+        if (fallbackError) throw fallbackError;
+        setProfiles(fallbackData || []);
+      } else {
+        setProfiles(data || []);
+      }
+    } catch (err: any) {
       console.error('Error fetching profiles:', err);
+      setError(err.message || 'Failed to load accounts. Please check your database permissions (RLS).');
     } finally {
       setLoading(false);
     }
@@ -123,9 +139,12 @@ const AccountManager: React.FC = () => {
   };
 
   const filteredProfiles = profiles.filter(p => {
+    // Role-based visibility
+    if (!isAdmin && p.role !== UserRole.STUDENT) return false;
+    
     const matchesSearch = 
-      p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      (p.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (p.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === 'all' || p.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -147,16 +166,24 @@ const AccountManager: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Manage Accounts</h1>
-          <p className="text-slate-500 text-sm">View and manage all user accounts in the system.</p>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            {isAdmin ? 'Manage Accounts' : 'Manage Students'}
+          </h1>
+          <p className="text-slate-500 text-sm">
+            {isAdmin 
+              ? 'View and manage all user accounts in the system.' 
+              : 'View and manage student accounts.'}
+          </p>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
-        >
-          <UserPlus size={20} />
-          Create Staff Account
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+          >
+            <UserPlus size={20} />
+            Create Staff Account
+          </button>
+        )}
       </div>
 
       <GlassCard className="p-6 border-slate-200">
@@ -165,25 +192,27 @@ const AccountManager: React.FC = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text"
-              placeholder="Search by name or email..."
+              placeholder={isAdmin ? "Search by name or email..." : "Search students..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
             />
           </div>
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2">
-            <Filter size={18} className="text-slate-400" />
-            <select 
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value as any)}
-              className="bg-transparent focus:outline-none text-sm font-medium text-slate-600"
-            >
-              <option value="all">All Roles</option>
-              <option value={UserRole.STUDENT}>Students</option>
-              <option value={UserRole.FACULTY}>Faculty/Staff</option>
-              <option value={UserRole.ADMIN}>Admins</option>
-            </select>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2">
+              <Filter size={18} className="text-slate-400" />
+              <select 
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value as any)}
+                className="bg-transparent focus:outline-none text-sm font-medium text-slate-600"
+              >
+                <option value="all">All Roles</option>
+                <option value={UserRole.STUDENT}>Students</option>
+                <option value={UserRole.FACULTY}>Faculty/Staff</option>
+                <option value={UserRole.ADMIN}>Admins</option>
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -192,7 +221,7 @@ const AccountManager: React.FC = () => {
               <tr className="text-left border-b border-slate-100">
                 <th className="pb-4 font-bold text-slate-400 uppercase tracking-widest text-[10px] px-4">User</th>
                 <th className="pb-4 font-bold text-slate-400 uppercase tracking-widest text-[10px] px-4">Role</th>
-                <th className="pb-4 font-bold text-slate-400 uppercase tracking-widest text-[10px] px-4">Joined Date</th>
+                <th className="pb-4 font-bold text-slate-400 uppercase tracking-widest text-[10px] px-4">Last Updated</th>
                 <th className="pb-4 font-bold text-slate-400 uppercase tracking-widest text-[10px] px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -202,6 +231,20 @@ const AccountManager: React.FC = () => {
                   <td colSpan={4} className="py-12 text-center">
                     <Loader2 className="animate-spin mx-auto text-indigo-600 mb-2" size={32} />
                     <p className="text-slate-400 text-sm">Loading accounts...</p>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={4} className="py-12 text-center">
+                    <AlertCircle className="mx-auto text-red-400 mb-4" size={48} />
+                    <p className="text-red-600 font-bold mb-2">Error Loading Accounts</p>
+                    <p className="text-slate-500 text-sm max-w-md mx-auto">{error}</p>
+                    <button 
+                      onClick={fetchProfiles}
+                      className="mt-4 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold hover:bg-slate-200 transition-all"
+                    >
+                      Try Again
+                    </button>
                   </td>
                 </tr>
               ) : filteredProfiles.length === 0 ? (
@@ -221,10 +264,12 @@ const AccountManager: React.FC = () => {
                         </div>
                         <div>
                           <p className="font-bold text-slate-800">{profile.full_name || 'No Name'}</p>
-                          <p className="text-xs text-slate-500 flex items-center gap-1">
-                            <Mail size={12} />
-                            {profile.email}
-                          </p>
+                          {profile.email && (
+                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                              <Mail size={12} />
+                              {profile.email}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -232,7 +277,7 @@ const AccountManager: React.FC = () => {
                       {getRoleBadge(profile.role)}
                     </td>
                     <td className="py-4 px-4 text-sm text-slate-500">
-                      {new Date(profile.created_at).toLocaleDateString()}
+                      {profile.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="py-4 px-4 text-right">
                       <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
