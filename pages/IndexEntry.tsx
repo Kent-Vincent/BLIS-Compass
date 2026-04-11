@@ -19,27 +19,27 @@ const IndexEntry: React.FC = () => {
 
   // Redirect if already logged in or handle hash errors
   React.useEffect(() => {
-    // Check for hash errors (e.g. expired email link)
-    const hash = window.location.hash;
-    if (hash && hash.includes('error=')) {
-      const params = new URLSearchParams(hash.substring(1));
-      const errorCode = params.get('error_code');
-      if (errorCode === 'otp_expired') {
-        setError('Your email confirmation link has expired or has already been used. Please log in if you have already verified, or request a new link below.');
-      } else {
-        setError(params.get('error_description') || 'An error occurred during verification.');
-      }
-      // Clear the hash to avoid showing the error again on refresh
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const hash = window.location.hash;
+
+  if (hash && hash.includes('error=')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const errorCode = params.get('error_code');
+
+    if (errorCode === 'otp_expired') {
+      setError('Your email confirmation link has expired or has already been used. Please log in if you have already verified, or request a new link below.');
+    } else {
+      setError(params.get('error_description') || 'An error occurred during verification.');
     }
 
-    if (session && profile) {
-      if (profile.role === 'student') navigate('/student');
-      else if (profile.role === 'faculty' || profile.role === 'admin') navigate('/staff');
-    } else if (session && !profile) {
-      // If session exists but profile doesn't, go to error page
-      navigate('/error');
-    }
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+
+  if (session && profile) {
+    if (profile.role === 'student') navigate('/student');
+    else if (profile.role === 'faculty' || profile.role === 'admin') navigate('/staff');
+  }
+
+    // Do nothing yet when session exists but profile is still loading
   }, [session, profile, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
