@@ -21,7 +21,7 @@ const StaffSidebar: React.FC = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/staff/overview' },
-    { icon: Users, label: 'Manage Students', path: '/staff/students' },
+    { icon: Users, label: 'Manage Accounts', path: '/staff/accounts' },
     { icon: BookOpen, label: 'Manage Questions', path: '/staff/questions' },
     { icon: BookOpen, label: 'Practice Sets', path: '/staff/practice' },
     { icon: FileText, label: 'Mock Exams', path: '/staff/mock-exams' },
