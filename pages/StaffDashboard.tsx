@@ -6,6 +6,7 @@ import MockExamsPage from './staff/MockExamsPage';
 import ExamBuilderPage from './staff/ExamBuilderPage';
 import PracticeManager from './staff/PracticeManager';
 import AccountManager from './staff/AccountManager';
+import AnalyticsPage from './staff/AnalyticsPage';
 import { motion } from 'motion/react';
 import { Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -131,7 +132,7 @@ const StaffDashboard: React.FC = () => {
             <Route path="mock-exams" element={<MockExamsPage />} />
             <Route path="mock-exams/:id" element={<ExamBuilderPage />} />
             <Route path="rooms" element={<PlaceholderPage title="Mockboard Rooms" />} />
-            <Route path="analytics" element={<PlaceholderPage title="Reports & Analytics" />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="settings" element={<PlaceholderPage title="Settings" />} />
             <Route path="*" element={<Navigate to="overview" replace />} />
           </Routes>

@@ -26,18 +26,24 @@ const MockExamsPage: React.FC = () => {
 
   useEffect(() => {
     let channel: any = null;
+    let mounted = true;
 
     const subscribe = async () => {
       // Ensure we have a valid session before subscribing
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      if (channel) {
-        supabase.removeChannel(channel);
+      // If channel already exists and is joined, don't re-subscribe
+      if (channel && channel.state === 'joined') {
+        return;
       }
 
-      channel = supabase
-        .channel('mock_exams_changes')
+      if (channel) {
+        await supabase.removeChannel(channel);
+      }
+
+      const newChannel = supabase
+        .channel(`mock_exams_student_${Math.random().toString(36).substring(7)}`)
         .on(
           'postgres_changes',
           {
@@ -69,9 +75,13 @@ const MockExamsPage: React.FC = () => {
           console.log('Realtime status:', status);
           if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
             // Attempt to re-subscribe after a delay if it closed unexpectedly
-            setTimeout(subscribe, 5000);
+            setTimeout(() => {
+              if (mounted) subscribe();
+            }, 5000);
           }
         });
+      
+      channel = newChannel;
     };
 
     fetchExams();
@@ -82,7 +92,10 @@ const MockExamsPage: React.FC = () => {
       if (document.visibilityState === 'visible') {
         console.log('Tab visible, re-syncing exams and realtime...');
         fetchExams();
-        subscribe();
+        // Only re-subscribe if channel is not active
+        if (!channel || channel.state !== 'joined') {
+          subscribe();
+        }
       }
     };
 
@@ -194,7 +207,7 @@ const MockExamsPage: React.FC = () => {
         <div className="p-8 bg-red-50 text-red-600 rounded-3xl text-center border border-red-100">
           <AlertCircle size={48} className="mx-auto mb-4" />
           <p className="font-bold text-lg">{error}</p>
-          <button onClick={fetchExams} className="mt-4 text-blue-600 font-bold hover:underline">
+          <button onClick={() => fetchExams()} className="mt-4 text-blue-600 font-bold hover:underline">
             Try Again
           </button>
         </div>

@@ -60,10 +60,9 @@ const ModalShell: React.FC<ModalShellProps> = ({ children, onClose }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md"
-      style={{ top: 0, left: 0, right: 0, bottom: 0, margin: 0 }}
+      className="fixed left-0 top-0 w-screen h-screen z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
     >
-      <div className="flex min-h-[100dvh] w-full items-start justify-center overflow-y-auto px-4 py-8 sm:py-12">
+      <div className="w-full max-h-full overflow-y-auto flex justify-center py-8">
         {children}
       </div>
     </motion.div>,
@@ -123,10 +122,10 @@ const AccountManager: React.FC = () => {
           // Fallback for other errors (like missing updated_at)
           const { data: fallbackData, error: fallbackError } = await supabase
             .from('profiles')
-            .select('id, full_name, role');
+            .select('id, full_name, role, updated_at');
           
           if (fallbackError) throw fallbackError;
-          setProfiles(fallbackData || []);
+          setProfiles((fallbackData as any) || []);
         }
       } else {
         setProfiles(data || []);
@@ -606,7 +605,7 @@ const AccountManager: React.FC = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative mt-6 w-full max-w-md overflow-hidden rounded-3xl border border-white/20 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/20 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
             >
               <div className="flex items-center justify-between border-b border-slate-100 p-6">
                 <h2 className="text-xl font-bold text-slate-800">Create Staff Account</h2>
@@ -715,7 +714,7 @@ const AccountManager: React.FC = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative mt-6 w-full max-w-md overflow-hidden rounded-3xl border border-white/20 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/20 bg-white shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
             >
               <div className="flex items-center justify-between border-b border-slate-100 p-6">
                 <h2 className="text-xl font-bold text-slate-800">Edit Profile</h2>
@@ -791,7 +790,7 @@ const AccountManager: React.FC = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative mt-6 w-full max-w-sm overflow-hidden rounded-3xl border border-white/20 bg-white p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
+              className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/20 bg-white p-8 text-center shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
             >
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-600">
                 <Trash2 size={32} />

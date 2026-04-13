@@ -16,15 +16,18 @@ import {
   XCircle,
   Flag,
   LayoutGrid,
-  ShieldCheck
+  ShieldCheck,
+  Download
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import { MockExam, MockExamItem, MockExamAttempt, PracticeSubject } from '../../types';
 import GlassCard from '../../components/GlassCard';
 
 const TakeExamPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   
   const [exam, setExam] = useState<MockExam | null>(null);
   const [items, setItems] = useState<MockExamItem[]>([]);
@@ -157,6 +160,33 @@ const TakeExamPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [loading, isFinished, timeLeft]);
 
+  const SUBJECT_MAPPING: Record<string, { displayName: string, weight: number }> = {
+    "Library Organization & Management": {
+      displayName: "Library Organization and Management - With Laws, Related Practices, and Trends",
+      weight: 20
+    },
+    "Reference, Bibliography & User Services": {
+      displayName: "Reference, Bibliography and User Services",
+      weight: 20
+    },
+    "Indexing & Abstracting": {
+      displayName: "Indexing and Abstracting",
+      weight: 15
+    },
+    "Cataloging & Classification": {
+      displayName: "Cataloging and Classification",
+      weight: 20
+    },
+    "Selection & Acquisition of Library Materials": {
+      displayName: "Selection and Acquisition of Multi-Media Sources of Information",
+      weight: 15
+    },
+    "Information Technology": {
+      displayName: "Information Technology",
+      weight: 10
+    }
+  };
+
   const saveProgress = useCallback(async (isSubmitting = false, finalScore = 0) => {
     if (!exam || !id || isFinished) return;
 
@@ -176,20 +206,67 @@ const TakeExamPage: React.FC = () => {
       updated_at: new Date().toISOString()
     };
 
-    if (attemptId) {
+    let currentAttemptId = attemptId;
+
+    if (currentAttemptId) {
       await supabase
         .from('mock_exam_attempts')
         .update(attemptData)
-        .eq('id', attemptId);
+        .eq('id', currentAttemptId);
     } else {
       const { data } = await supabase
         .from('mock_exam_attempts')
         .insert([attemptData])
         .select()
         .single();
-      if (data) setAttemptId(data.id);
+      if (data) {
+        setAttemptId(data.id);
+        currentAttemptId = data.id;
+      }
     }
-  }, [exam, id, answers, flagged, timeLeft, currentIndex, isFinished, attemptId, items.length]);
+
+    // If submitting, also save to mock_exam_results for analytics
+    if (isSubmitting && currentAttemptId) {
+      let totalGWA = 0;
+      const breakdown = subjects.map(sub => {
+        const subItems = items.filter(item => item.subject_id === sub.id);
+        if (subItems.length === 0) return null;
+        
+        const correct = subItems.filter(item => answers[item.id] === item.correct_answer).length;
+        const mapping = SUBJECT_MAPPING[sub.name] || { displayName: sub.name, weight: 0 };
+        
+        const rating = (correct / subItems.length) * 100;
+        const contribution = (rating * mapping.weight) / 100;
+        totalGWA += contribution;
+        
+        return {
+          name: mapping.displayName,
+          original_name: sub.name,
+          score: correct,
+          total: subItems.length,
+          weight: mapping.weight,
+          rating: rating.toFixed(2),
+          contribution: contribution.toFixed(2)
+        };
+      }).filter(Boolean);
+
+      const finalGWA = parseFloat(totalGWA.toFixed(2));
+      const passed = finalGWA >= 75; // Usually 75% is passing for board exams
+
+      await supabase
+        .from('mock_exam_results')
+        .insert([{
+          student_id: user.id,
+          exam_id: id,
+          attempt_id: currentAttemptId,
+          score: finalScore,
+          total_items: items.length,
+          percentage: finalGWA, // Using GWA as the main percentage
+          passed: passed,
+          category_breakdown: breakdown
+        }]);
+    }
+  }, [exam, id, answers, flagged, timeLeft, currentIndex, isFinished, attemptId, items, subjects]);
 
   // Auto-save every 30 seconds
   useEffect(() => {
@@ -274,113 +351,185 @@ const TakeExamPage: React.FC = () => {
   }
 
   if (isFinished) {
-    const percentage = Math.round((score / items.length) * 100);
-    const passed = percentage >= 75;
-
-    // Calculate category breakdown with weights
-    const CATEGORY_WEIGHTS: Record<string, number> = {
-      "Library Organization and Management": 20,
-      "Library Organization & Management": 20,
-      "Reference, Bibliography, and User Services": 20,
-      "Reference, Bibliography & User Services": 20,
-      "Cataloging and Classification": 20,
-      "Cataloging & Classification": 20,
-      "Indexing and Abstracting": 15,
-      "Indexing & Abstracting": 15,
-      "Selection and Acquisition of Multi-Media Sources": 15,
-      "Selection & Acquisition of Library Materials": 15,
-      "Information Technology": 10
-    };
-
+    let totalGWA = 0;
     const breakdown = subjects.map(sub => {
       const subItems = items.filter(item => item.subject_id === sub.id);
       if (subItems.length === 0) return null;
+      
       const correct = subItems.filter(item => answers[item.id] === item.correct_answer).length;
-      const weight = CATEGORY_WEIGHTS[sub.name] || 0;
-      const contribution = weight > 0 ? (correct / subItems.length) * weight : 0;
+      const mapping = SUBJECT_MAPPING[sub.name] || { displayName: sub.name, weight: 0 };
+      
+      const rating = (correct / subItems.length) * 100;
+      const contribution = (rating * mapping.weight) / 100;
+      totalGWA += contribution;
       
       return {
-        name: sub.name,
+        name: mapping.displayName,
         score: correct,
         total: subItems.length,
-        weight: weight,
-        contribution: contribution % 1 === 0 ? contribution.toString() : contribution.toFixed(1),
-        percentage: Math.round((correct / subItems.length) * 100)
+        weight: mapping.weight,
+        rating: rating.toFixed(2),
+        contribution: contribution.toFixed(2)
       };
     }).filter(Boolean);
 
+    const finalGWA = parseFloat(totalGWA.toFixed(2));
+    const passed = finalGWA >= 75;
+
     return (
-      <div className="max-w-4xl mx-auto py-8 px-4">
+      <div className="max-w-5xl mx-auto py-12 px-6">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100"
         >
-          <GlassCard className="p-6 md:p-10 text-center border-white/60 shadow-2xl">
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl ${passed ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-              {passed ? <Trophy size={40} /> : <XCircle size={40} />}
+          <div className={`p-10 text-center ${passed ? 'bg-emerald-600' : 'bg-rose-600'} text-white relative overflow-hidden`}>
+            {/* Decorative background elements */}
+            <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+              <div className="absolute -top-24 -left-24 w-64 h-64 bg-white rounded-full blur-3xl" />
+              <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl" />
             </div>
-            
-            <h2 className="text-3xl font-bold text-slate-800 mb-1">Exam Result</h2>
-            <p className="text-slate-500 mb-8 font-medium">Simulation Complete</p>
 
-            <div className="flex justify-center mb-10">
-              <div className="bg-white/50 backdrop-blur-sm p-8 rounded-3xl border border-white/60 shadow-sm min-w-[240px]">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Overall Percentage</p>
-                <p className={`text-5xl font-black ${passed ? 'text-emerald-600' : 'text-slate-800'}`}>{percentage}%</p>
+            <div className="relative z-10">
+              <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-md shadow-inner">
+                {passed ? <Trophy size={40} /> : <XCircle size={40} />}
               </div>
+              <h2 className="text-3xl font-black mb-2 tracking-tight">
+                MOCK BOARD EXAMINATION RESULT
+              </h2>
+              <p className="text-white/80 font-bold uppercase tracking-[0.2em] text-xs">
+                Academic Year 2025-2026
+              </p>
             </div>
+          </div>
 
-            {breakdown.length > 0 && (
-              <div className="mb-10 text-left">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 ml-1">Category Breakdown</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {breakdown.map((item: any) => (
-                    <div key={item.name} className="bg-white/40 backdrop-blur-sm border border-white/60 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all">
-                      <div className="flex justify-between items-start mb-2 gap-4">
-                        <span className="text-sm font-bold text-slate-700 leading-tight">{item.name}</span>
-                        <span className="text-xs font-black text-indigo-600 whitespace-nowrap bg-indigo-50 px-2 py-1 rounded-lg">
-                          {item.contribution}% / {item.weight}%
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-2 bg-slate-100/50 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all duration-1000 ${item.percentage >= 75 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                            style={{ width: `${item.percentage}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400 w-8 text-right">{item.percentage}%</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-2 font-medium">
-                        {item.contribution}% correct answer out of {item.weight}%
-                      </p>
-                    </div>
-                  ))}
+          <div className="p-8 md:p-12">
+            {/* Student Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 pb-8 border-b border-slate-100">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Name of Student</p>
+                  <p className="text-xl font-bold text-slate-800">{profile?.name || 'Loading...'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Course & Year</p>
+                  <p className="text-lg font-bold text-slate-700">BLIS-4</p>
                 </div>
               </div>
-            )}
-
-            <div className={`p-6 rounded-2xl mb-10 font-bold ${passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-              {passed 
-                ? "Excellent! You've passed the simulation. Keep up the great work!" 
-                : "Don't give up! Review your weak spots and try again to improve your score."}
+              <div className="flex flex-col items-center md:items-end justify-center">
+                <div className="text-center md:text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">General Weighted Average</p>
+                  <p className={`text-6xl font-black ${passed ? 'text-emerald-600' : 'text-rose-600'}`}>{finalGWA}%</p>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button 
+            {/* Results Table */}
+            <div className="bg-slate-50/50 rounded-3xl border border-slate-100 overflow-hidden mb-12">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100/50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                      <th className="py-5 px-6">Subjects</th>
+                      <th className="py-5 px-4 text-center">Required Percentile</th>
+                      <th className="py-5 px-4 text-center">Actual Score</th>
+                      <th className="py-5 px-4 text-center">Rating</th>
+                      <th className="py-5 px-6 text-right">Percentile Distribution</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {breakdown.map((item: any, idx) => (
+                      <tr key={idx} className="hover:bg-white transition-colors group">
+                        <td className="py-5 px-6">
+                          <div className="flex items-start gap-3">
+                            <span className="text-slate-300 font-black text-xs mt-0.5">{idx + 1}.</span>
+                            <span className="text-sm font-bold text-slate-700 leading-snug">{item.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-5 px-4 text-center">
+                          <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg font-bold text-xs">{item.weight}%</span>
+                        </td>
+                        <td className="py-5 px-4 text-center">
+                          <span className="text-sm font-bold text-slate-600">{item.score} / {item.total}</span>
+                        </td>
+                        <td className="py-5 px-4 text-center">
+                          <span className={`text-sm font-black ${parseFloat(item.rating) >= 75 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                            {item.rating}%
+                          </span>
+                        </td>
+                        <td className="py-5 px-6 text-right">
+                          <span className="text-sm font-black text-indigo-600">{item.contribution}%</span>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-indigo-600 text-white font-black">
+                      <td className="py-6 px-6 rounded-bl-3xl">TOTAL:</td>
+                      <td className="py-6 px-4 text-center">100%</td>
+                      <td className="py-6 px-4 text-center">{score} / {items.length}</td>
+                      <td className="py-6 px-4 text-center">-</td>
+                      <td className="py-6 px-6 text-right rounded-br-3xl">{finalGWA}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Summary & Footer */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Score:</span>
+                    <span className="text-lg font-bold text-slate-800">{score} / {items.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">General Weighted Average:</span>
+                    <span className="text-lg font-bold text-slate-800">{finalGWA}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Rate:</span>
+                    <span className={`text-lg font-black ${passed ? 'text-emerald-600' : 'text-rose-600'}`}>{finalGWA}%</span>
+                  </div>
+                  <div className="pt-4 border-t border-slate-200">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Final Remarks:</p>
+                    <div className={`text-3xl font-black ${passed ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {passed ? 'PASSED' : 'FAILED'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-end space-y-12 text-center lg:text-right">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Checked and verified by:</p>
+                  <p className="text-sm font-black text-slate-800 uppercase">ISAVAL MAE C. MONTERDE, RL, MLIS</p>
+                  <p className="text-[10px] font-bold text-slate-500">LPr2/LIS115 Instructor/ BLIS Coordinator</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Noted by:</p>
+                  <p className="text-sm font-black text-slate-800 uppercase">OWEN B. PILONGO, MIT, DBM-IS</p>
+                  <p className="text-[10px] font-bold text-slate-500">Dean, CET</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-16 flex flex-col sm:flex-row gap-4 no-print">
+              <button
                 onClick={() => navigate('/student/mock-exams')}
-                className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all"
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
               >
-                Back to Mock Exams
+                <ArrowLeft size={20} />
+                Back to Exams
               </button>
-              <button 
-                onClick={() => window.location.reload()}
-                className="flex-1 py-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all"
+              <button
+                onClick={() => window.print()}
+                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
               >
-                Retake Exam
+                <Download size={20} />
+                Download Result (PDF)
               </button>
             </div>
-          </GlassCard>
+          </div>
         </motion.div>
       </div>
     );
@@ -644,7 +793,12 @@ const TakeExamPage: React.FC = () => {
       {/* Review Modal */}
       {showReviewModal && createPortal(
         <AnimatePresence>
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed left-0 top-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md"
+          >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -776,7 +930,7 @@ const TakeExamPage: React.FC = () => {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         </AnimatePresence>,
         document.body
       )}

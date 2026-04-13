@@ -1,4 +1,3 @@
-
 export enum UserRole {
   STUDENT = 'student',
   FACULTY = 'faculty',
@@ -62,6 +61,19 @@ export interface MockExamAttempt {
   is_submitted: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface MockExamResult {
+  id: string;
+  student_id: string;
+  exam_id: string;
+  attempt_id: string;
+  score: number;
+  total_items: number;
+  percentage: number;
+  passed: boolean;
+  category_breakdown: any[];
+  created_at: string;
 }
 
 export interface PracticeSubject {
