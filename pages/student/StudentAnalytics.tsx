@@ -1,34 +1,28 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  BarChart3, 
-  Users, 
-  GraduationCap, 
-  TrendingUp, 
-  Search, 
-  Filter, 
-  Download,
-  ChevronRight,
-  Calendar,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  AlertCircle,
-  FileText,
-  X,
-  LayoutGrid,
-  Trophy,
-  ArrowLeft,
-  Printer
-} from 'lucide-react';
-import { supabase } from '../../src/lib/supabase';
-import GlassCard from '../../components/GlassCard';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { useRef } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { 
+  BarChart3, 
+  Search, 
+  Calendar, 
+  FileText, 
+  X, 
+  Download, 
+  Loader2, 
+  Trophy, 
+  XCircle,
+  TrendingUp,
+  Target,
+  Medal,
+  ArrowRight
+} from 'lucide-react';
+import { supabase } from '../../src/lib/supabase';
+import { useAuth } from '../../context/AuthContext';
+import GlassCard from '../../components/GlassCard';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface ExamResult {
   id: string;
@@ -40,23 +34,22 @@ interface ExamResult {
   passed: boolean;
   category_breakdown: any[];
   created_at: string;
-  profiles: { full_name: string };
   mock_exams: { title: string };
 }
 
-const AnalyticsPage: React.FC = () => {
+const StudentAnalytics: React.FC = () => {
+  const { profile } = useAuth();
   const [results, setResults] = useState<ExamResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'passed' | 'failed'>('all');
   const [selectedResult, setSelectedResult] = useState<ExamResult | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchResults();
-  }, []);
+    if (profile) {
+      fetchResults();
+    }
+  }, [profile]);
 
   const fetchResults = async () => {
     try {
@@ -65,16 +58,15 @@ const AnalyticsPage: React.FC = () => {
         .from('mock_exam_results')
         .select(`
           *,
-          profiles:student_id (full_name),
           mock_exams:exam_id (title)
         `)
+        .eq('student_id', profile?.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setResults(data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching results:', err);
-      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -87,7 +79,6 @@ const AnalyticsPage: React.FC = () => {
       setIsDownloading(true);
       const element = reportRef.current;
       
-      // Temporary style to ensure white background and proper scaling
       const originalStyle = element.style.cssText;
       element.style.backgroundColor = 'white';
       element.style.width = '800px';
@@ -114,7 +105,7 @@ const AnalyticsPage: React.FC = () => {
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`MockBoard_Result_${selectedResult.profiles?.full_name?.replace(/\s+/g, '_')}.pdf`);
+      pdf.save(`MockBoard_Result_${profile?.name?.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
     } finally {
@@ -122,69 +113,54 @@ const AnalyticsPage: React.FC = () => {
     }
   };
 
-  const filteredResults = results.filter(res => {
-    const matchesSearch = res.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         res.mock_exams?.title?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || 
-                         (filterStatus === 'passed' && res.passed) || 
-                         (filterStatus === 'failed' && !res.passed);
-    return matchesSearch && matchesStatus;
-  });
-
-  const stats = {
-    totalAttempts: results.length,
-    avgScore: results.length > 0 ? (results.reduce((acc, curr) => acc + curr.percentage, 0) / results.length).toFixed(1) : 0,
-    passRate: results.length > 0 ? ((results.filter(r => r.passed).length / results.length) * 100).toFixed(1) : 0,
-    activeStudents: new Set(results.map(r => r.student_id)).size
-  };
-
-  // Prepare chart data (last 7 days)
-  const chartData = results.slice(0, 10).reverse().map(res => ({
-    name: res.profiles?.full_name?.split(' ')[0] || 'User',
+  const chartData = [...results].reverse().map(res => ({
+    date: new Date(res.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     score: res.percentage
   }));
 
+  const stats = {
+    totalExams: results.length,
+    avgScore: results.length > 0 ? (results.reduce((acc, curr) => acc + curr.percentage, 0) / results.length).toFixed(1) : 0,
+    passRate: results.length > 0 ? ((results.filter(r => r.passed).length / results.length) * 100).toFixed(1) : 0,
+    highestScore: results.length > 0 ? Math.max(...results.map(r => r.percentage)) : 0
+  };
+
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="animate-spin text-indigo-600" size={48} />
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <Loader2 className="animate-spin text-blue-600" size={48} />
+        <p className="text-slate-500 font-medium tracking-wide">Analyzing your performance...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Reports & Analytics</h1>
-          <p className="text-slate-500">Monitor student performance and exam statistics.</p>
-        </div>
-        <button className="bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm">
-          <Download size={20} />
-          Export Data
-        </button>
-      </div>
+    <div className="space-y-8 pb-12">
+      <header>
+        <h1 className="text-3xl font-bold text-slate-800 mb-2">My Performance Analytics</h1>
+        <p className="text-slate-500">Track your progress and review your mock board exam results.</p>
+      </header>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Submissions', value: stats.totalAttempts, icon: GraduationCap, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Average Score', value: `${stats.avgScore}%`, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'Overall Pass Rate', value: `${stats.passRate}%`, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Active Students', value: stats.activeStudents, icon: Users, color: 'text-orange-600', bg: 'bg-orange-50' },
+          { label: 'Total Exams', value: stats.totalExams, icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Avg. GWA', value: `${stats.avgScore}%`, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { label: 'Pass Rate', value: `${stats.passRate}%`, icon: Target, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Highest GWA', value: `${stats.highestScore}%`, icon: Medal, color: 'text-amber-600', bg: 'bg-amber-50' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
+            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
           >
-            <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-4`}>
+            <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center mb-4 shadow-sm`}>
               <stat.icon size={24} />
             </div>
-            <p className="text-sm font-medium text-slate-500 mb-1">{stat.label}</p>
-            <p className="text-2xl font-bold text-slate-800">{stat.value}</p>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
+            <p className="text-2xl font-black text-slate-800">{stat.value}</p>
           </motion.div>
         ))}
       </div>
@@ -192,132 +168,131 @@ const AnalyticsPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Performance Chart */}
         <div className="lg:col-span-2">
-          <GlassCard className="p-8 border-slate-200 h-full">
-            <h3 className="text-lg font-bold text-slate-800 mb-6">Recent Performance Trend</h3>
+          <GlassCard className="h-full border-white/60">
+            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+              <TrendingUp size={20} className="text-blue-600" />
+              GWA Progression
+            </h3>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} domain={[0, 100]} />
-                  <Tooltip 
-                    contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                  />
-                  <Area type="monotone" dataKey="score" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
-                </AreaChart>
-              </ResponsiveContainer>
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="date" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                      domain={[0, 100]}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        borderRadius: '16px', 
+                        border: 'none', 
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                        padding: '12px'
+                      }} 
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="score" 
+                      stroke="#3b82f6" 
+                      strokeWidth={4} 
+                      fillOpacity={1} 
+                      fill="url(#colorScore)" 
+                      animationDuration={1500}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 italic">
+                  <BarChart3 size={48} className="mb-4 opacity-20" />
+                  <p>No exam data available yet.</p>
+                </div>
+              )}
             </div>
           </GlassCard>
         </div>
 
-        {/* Pass/Fail Distribution */}
-        <div>
-          <GlassCard className="p-8 border-slate-200 h-full">
-            <h3 className="text-lg font-bold text-slate-800 mb-6">Result Distribution</h3>
-            <div className="space-y-6">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="font-bold text-slate-600">Passed</span>
-                  <span className="text-emerald-600 font-bold">{stats.passRate}%</span>
-                </div>
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500" style={{ width: `${stats.passRate}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="font-bold text-slate-600">Failed</span>
-                  <span className="text-rose-600 font-bold">{results.length > 0 ? (100 - Number(stats.passRate)).toFixed(1) : 0}%</span>
-                </div>
-                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-rose-500" style={{ width: `${results.length > 0 ? 100 - Number(stats.passRate) : 0}%` }} />
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-12 p-6 bg-indigo-50 rounded-2xl border border-indigo-100">
-              <div className="flex items-center gap-3 text-indigo-600 font-bold mb-2">
-                <BarChart3 size={20} />
-                <span>Quick Insight</span>
-              </div>
-              <p className="text-sm text-indigo-500 leading-relaxed">
-                {Number(stats.passRate) > 70 
-                  ? "Students are performing exceptionally well. Consider increasing the difficulty of mock exams."
-                  : "Pass rate is below target. You might want to review the 'Cataloging' and 'Reference' sections with students."}
-              </p>
+        {/* Recent Results List */}
+        <div className="lg:col-span-1">
+          <GlassCard className="h-full border-white/60">
+            <h3 className="text-lg font-bold text-slate-800 mb-6">Recent Exams</h3>
+            <div className="space-y-4">
+              {results.length === 0 ? (
+                <p className="text-slate-400 italic text-center py-8">Take an exam to see results here.</p>
+              ) : (
+                results.slice(0, 5).map((res) => (
+                  <button
+                    key={res.id}
+                    onClick={() => setSelectedResult(res)}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100 transition-all text-left group"
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${res.passed ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                      {res.passed ? <Trophy size={20} /> : <XCircle size={20} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">{res.mock_exams?.title}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        {new Date(res.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black ${res.passed ? 'text-emerald-600' : 'text-rose-600'}`}>{res.percentage}%</p>
+                      <ArrowRight size={14} className="ml-auto text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </GlassCard>
         </div>
       </div>
 
-      {/* Results Table */}
-      <GlassCard className="border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 className="text-lg font-bold text-slate-800">Detailed Submissions</h3>
-          <div className="flex flex-wrap gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input 
-                type="text"
-                placeholder="Search student or exam..."
-                className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <select 
-              className="px-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value as any)}
-            >
-              <option value="all">All Status</option>
-              <option value="passed">Passed</option>
-              <option value="failed">Failed</option>
-            </select>
-          </div>
+      {/* Full Results Table */}
+      <GlassCard className="border-white/60 overflow-hidden">
+        <div className="p-6 border-b border-white/60">
+          <h3 className="text-lg font-bold text-slate-800">Exam History</h3>
         </div>
-
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50">
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Student</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Exam Title</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Score</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Percentage</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Date</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Exam Title</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Score</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">GWA</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredResults.length === 0 ? (
+              {results.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
-                    No results found matching your criteria.
+                    No examination history found.
                   </td>
                 </tr>
               ) : (
-                filteredResults.map((res) => (
-                  <tr key={res.id} className="hover:bg-slate-50/50 transition-colors">
+                results.map((res) => (
+                  <tr key={res.id} className="hover:bg-slate-50/30 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
-                          {res.profiles?.full_name?.charAt(0)}
-                        </div>
-                        <span className="font-bold text-slate-700">{res.profiles?.full_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600 font-medium">{res.mock_exams?.title}</span>
+                      <span className="text-sm font-bold text-slate-700">{res.mock_exams?.title}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="text-sm font-bold text-slate-700">{res.score} / {res.total_items}</span>
+                      <span className="text-sm font-bold text-slate-600">{res.score} / {res.total_items}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`text-sm font-black ${res.passed ? 'text-emerald-600' : 'text-slate-800'}`}>
@@ -325,31 +300,28 @@ const AnalyticsPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <Calendar size={14} />
-                        {new Date(res.created_at).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-center gap-2">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      <div className="flex justify-center">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                           res.passed ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
                         }`}>
                           {res.passed ? 'Passed' : 'Failed'}
                         </span>
-                        <button 
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedResult(res);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                          title="View Detailed Report"
-                        >
-                          <FileText size={18} />
-                        </button>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                        <Calendar size={14} />
+                        {new Date(res.created_at).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => setSelectedResult(res)}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                        title="View Detailed Report"
+                      >
+                        <FileText size={18} />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -395,7 +367,7 @@ const AnalyticsPage: React.FC = () => {
                     <div className="space-y-4">
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Name of Student</p>
-                        <p className="text-lg font-bold text-slate-800">{selectedResult.profiles?.full_name}</p>
+                        <p className="text-lg font-bold text-slate-800">{profile?.name}</p>
                       </div>
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Course & Year</p>
@@ -512,4 +484,4 @@ const AnalyticsPage: React.FC = () => {
   );
 };
 
-export default AnalyticsPage;
+export default StudentAnalytics;

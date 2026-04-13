@@ -1,8 +1,10 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { 
   ArrowLeft, 
   Clock, 
@@ -28,6 +30,8 @@ const TakeExamPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
   
   const [exam, setExam] = useState<MockExam | null>(null);
   const [items, setItems] = useState<MockExamItem[]>([]);
@@ -330,6 +334,47 @@ const TakeExamPage: React.FC = () => {
     await saveProgress(true, correctCount);
   };
 
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current) return;
+    
+    try {
+      setIsDownloading(true);
+      const element = reportRef.current;
+      
+      const originalStyle = element.style.cssText;
+      element.style.backgroundColor = 'white';
+      element.style.width = '800px';
+      
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 800
+      });
+      
+      element.style.cssText = originalStyle;
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: 'a4'
+      });
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`MockBoard_Result_${profile?.name?.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -403,7 +448,7 @@ const TakeExamPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-8 md:p-12">
+          <div className="p-8 md:p-12" ref={reportRef}>
             {/* Student Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 pb-8 border-b border-slate-100">
               <div className="space-y-4">
@@ -522,11 +567,16 @@ const TakeExamPage: React.FC = () => {
                 Back to Exams
               </button>
               <button
-                onClick={() => window.print()}
-                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                onClick={handleDownloadPDF}
+                disabled={isDownloading}
+                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <Download size={20} />
-                Download Result (PDF)
+                {isDownloading ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <Download size={20} />
+                )}
+                {isDownloading ? 'Generating PDF...' : 'Download Result (PDF)'}
               </button>
             </div>
           </div>

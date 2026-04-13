@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
@@ -7,6 +7,7 @@ import { GameCard, MockExam } from '../types';
 import { useAuth } from '../context/AuthContext';
 import MockExamsPage from './student/MockExamsPage';
 import TakeExamPage from './student/TakeExamPage';
+import StudentAnalytics from './student/StudentAnalytics';
 import PracticeSetsTab from './student/PracticeSetsTab';
 import PracticePlayer from './student/PracticePlayer';
 import ReferenceCrushPro from './student/games/ReferenceCrushPro';
@@ -15,6 +16,7 @@ import Classify from './student/games/Classify';
 import ShelfShuffle from './student/games/ShelfShuffle';
 import MarcMatch from './student/games/MarcMatch';
 import Logo from '../components/Logo';
+import { supabase } from '../src/lib/supabase';
 import { 
   Home, 
   Gamepad2, 
@@ -28,6 +30,7 @@ import {
   Star, 
   Compass,
   CheckCircle2,
+  XCircle,
   Medal,
   ArrowRight,
   GraduationCap,
@@ -59,7 +62,7 @@ const PROGRESS_DATA = [
   { day: 'Sun', score: 95 },
 ];
 
-const OverviewTab: React.FC<{ profile: any, IconMap: any, navigate: any }> = ({ profile, IconMap, navigate }) => (
+const OverviewTab: React.FC<{ profile: any, IconMap: any, navigate: any, trendData: any[], activityData: any[], loading: boolean }> = ({ profile, IconMap, navigate, trendData, activityData, loading }) => (
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
     {/* Main Stats Area */}
     <div className="lg:col-span-2 space-y-8 min-w-0">
@@ -67,44 +70,57 @@ const OverviewTab: React.FC<{ profile: any, IconMap: any, navigate: any }> = ({ 
       <GlassCard className="border-white/60">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-slate-800 text-lg">Performance Trend</h3>
-          <span className="text-xs text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">
-            +12% from last week
-          </span>
+          {trendData.length > 0 && (
+            <span className="text-xs text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full uppercase tracking-wider">
+              Based on last {trendData.length} exams
+            </span>
+          )}
         </div>
 
         <div className="w-full min-w-0 min-h-[160px]">
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={PROGRESS_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis
-                dataKey="day"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#94a3b8', fontSize: 12 }}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: '16px',
-                  border: 'none',
-                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="score"
-                stroke="#3b82f6"
-                strokeWidth={3}
-                fillOpacity={1}
-                fill="url(#colorScore)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <div className="h-[300px] flex items-center justify-center">
+              <Loader2 className="animate-spin text-blue-600" size={32} />
+            </div>
+          ) : trendData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis
+                  dataKey="day"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 12 }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: '16px',
+                    border: 'none',
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="score"
+                  stroke="#3b82f6"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorScore)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 italic">
+              <BarChart3 size={48} className="mb-4 opacity-20" />
+              <p>Take your first mock exam to see your performance trend!</p>
+            </div>
+          )}
         </div>
       </GlassCard>
 
@@ -177,22 +193,26 @@ const OverviewTab: React.FC<{ profile: any, IconMap: any, navigate: any }> = ({ 
        <GlassCard className="border-white/60">
           <h3 className="font-bold text-slate-800 mb-4">Recent Activity</h3>
           <div className="space-y-4">
-            {[
-              { action: 'Mock Exam Completed', time: '2h ago', points: '+250 XP', icon: CheckCircle2, color: 'text-emerald-500' },
-              { action: 'Cataloging Blitz', time: 'Yesterday', points: '+120 XP', icon: Gamepad2, color: 'text-blue-500' },
-              { action: 'Earned "DDC Expert"', time: '2d ago', points: '+500 XP', icon: Medal, color: 'text-amber-500' },
-            ].map((act, idx) => (
-              <div key={idx} className="flex items-start space-x-3 p-2 rounded-xl hover:bg-slate-50 transition-colors">
-                <div className={`mt-1 ${act.color}`}>
-                  <act.icon size={18} />
-                </div>
-                <div className="flex-grow">
-                  <p className="text-sm font-bold text-slate-700">{act.action}</p>
-                  <p className="text-xs text-slate-400">{act.time}</p>
-                </div>
-                <span className="text-xs font-bold text-blue-600">{act.points}</span>
+            {loading ? (
+              <div className="py-8 flex justify-center">
+                <Loader2 className="animate-spin text-slate-300" size={24} />
               </div>
-            ))}
+            ) : activityData.length === 0 ? (
+              <p className="text-slate-400 italic text-sm text-center py-4">No recent activity.</p>
+            ) : (
+              activityData.map((act, idx) => (
+                <div key={idx} className="flex items-start space-x-3 p-2 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className={`mt-1 ${act.color}`}>
+                    <act.icon size={18} />
+                  </div>
+                  <div className="flex-grow">
+                    <p className="text-sm font-bold text-slate-700">{act.action}</p>
+                    <p className="text-xs text-slate-400">{act.time}</p>
+                  </div>
+                  <span className="text-xs font-bold text-blue-600">{act.points}</span>
+                </div>
+              ))
+            )}
           </div>
        </GlassCard>
     </div>
@@ -224,9 +244,56 @@ const GamesTab: React.FC<{ IconMap: any, navigate: any }> = ({ IconMap, navigate
 );
 
 const StudentDashboard: React.FC = () => {
-  const { profile, signOut, loading, signingOut } = useAuth();
+  const { profile, signOut, loading: authLoading, signingOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [performanceTrend, setPerformanceTrend] = useState<any[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    if (profile) {
+      fetchDashboardData();
+    }
+  }, [profile]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoadingStats(true);
+      
+      // Fetch recent exam results for activity
+      const { data: results, error: resultsError } = await supabase
+        .from('mock_exam_results')
+        .select('*, mock_exams(title)')
+        .eq('student_id', profile?.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (resultsError) throw resultsError;
+
+      // Transform results into activity format
+      const activities = (results || []).map(res => ({
+        action: `Completed ${res.mock_exams?.title}`,
+        time: new Date(res.created_at).toLocaleDateString(),
+        points: `+${res.score} XP`,
+        icon: res.passed ? CheckCircle2 : XCircle,
+        color: res.passed ? 'text-emerald-500' : 'text-rose-500'
+      }));
+      setRecentActivity(activities);
+
+      // Transform results into trend format (last 7 results)
+      const trend = [...(results || [])].reverse().map(res => ({
+        day: new Date(res.created_at).toLocaleDateString('en-US', { weekday: 'short' }),
+        score: res.percentage
+      }));
+      setPerformanceTrend(trend);
+
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   // Determine active tab from URL
   const getActiveTab = () => {
@@ -234,13 +301,14 @@ const StudentDashboard: React.FC = () => {
     if (path.includes('/student/games')) return 'games';
     if (path.includes('/student/mock-exams')) return 'mock-exams';
     if (path.includes('/student/practice')) return 'practice';
+    if (path.includes('/student/analytics')) return 'analytics';
     return 'overview';
   };
 
   const activeTab = getActiveTab();
   const isPlayerActive = location.pathname.includes('/mock-exams/') || location.pathname.includes('/practice/');
 
-  if (loading || !profile) {
+  if (authLoading || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
@@ -294,7 +362,10 @@ const StudentDashboard: React.FC = () => {
               <span>Practice Sets</span>
             </button>
             <div className="pt-6 mt-6 border-t border-slate-100">
-               <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-50">
+               <button 
+                 onClick={() => navigate('/student/analytics')}
+                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'analytics' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-500 hover:bg-slate-50'}`}
+               >
                   <BarChart3 size={20} />
                   <span>Analytics</span>
                </button>
@@ -349,7 +420,7 @@ const StudentDashboard: React.FC = () => {
         )}
 
         <Routes>
-          <Route path="overview" element={<OverviewTab profile={profile} IconMap={IconMap} navigate={navigate} />} />
+          <Route path="overview" element={<OverviewTab profile={profile} IconMap={IconMap} navigate={navigate} trendData={performanceTrend} activityData={recentActivity} loading={loadingStats} />} />
           <Route path="games" element={<GamesTab IconMap={IconMap} navigate={navigate} />} />
           <Route path="games/1" element={<ReferenceCrushPro />} />
           <Route path="games/2" element={<SourceDetectives />} />
@@ -360,6 +431,7 @@ const StudentDashboard: React.FC = () => {
           <Route path="mock-exams/:id" element={<TakeExamPage />} />
           <Route path="practice" element={<PracticeSetsTab />} />
           <Route path="practice/:subjectId/part/:partNo" element={<PracticePlayer />} />
+          <Route path="analytics" element={<StudentAnalytics />} />
           <Route path="*" element={<Navigate to="overview" replace />} />
         </Routes>
       </main>
