@@ -14,12 +14,69 @@ import {
   Save,
   X,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
 import { PracticeSubject, PracticeQuestion } from '../../types';
 import GlassCard from '../../components/GlassCard';
 import { useAuth } from '../../context/AuthContext';
+
+interface ModalShellProps {
+  children: React.ReactNode;
+  onClose: () => void;
+}
+
+const ModalShell: React.FC<ModalShellProps> = ({ children, onClose }) => {
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl">
+        {children}
+      </div>
+    </motion.div>,
+    document.body
+  );
+};
+
+const Toast: React.FC<{ message: string; visible: boolean; type?: 'success' | 'error' | 'delete'; onClose: () => void }> = ({ message, visible, type = 'success', onClose }) => {
+  const getColors = () => {
+    switch(type) {
+      case 'delete': return 'bg-amber-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-emerald-500';
+    }
+  };
+
+  const Icon = type === 'delete' ? Trash2 : (type === 'error' ? AlertCircle : CheckCircle2);
+
+  return createPortal(
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ opacity: 0, y: -20, x: '-50%' }}
+          animate={{ opacity: 1, y: 20, x: '-50%' }}
+          exit={{ opacity: 0, y: -20, x: '-50%' }}
+          className={`fixed top-0 left-1/2 z-[10000] min-w-[320px] ${getColors()} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4`}
+        >
+          <div className="bg-white/20 p-2 rounded-xl">
+            <Icon size={24} />
+          </div>
+          <p className="font-bold flex-grow">{message}</p>
+          <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg transition-all">
+            <X size={20} />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
+};
 
 const PracticeManager: React.FC = () => {
   const { profile } = useAuth();
@@ -28,13 +85,18 @@ const PracticeManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedPart, setSelectedPart] = useState<number>(1);
+  const [mounted, setMounted] = useState(false);
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Partial<PracticeQuestion> | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'delete'>('success');
 
   useEffect(() => {
+    setMounted(true);
     fetchSubjects();
   }, []);
 
@@ -81,37 +143,66 @@ const PracticeManager: React.FC = () => {
 
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingQuestion || !profile) return;
+    if (!editingQuestion) {
+      alert('No question data to save.');
+      return;
+    }
+    if (!profile) {
+      alert('User profile not loaded. Please try logging in again.');
+      return;
+    }
+
+    if (!selectedSubject) {
+      alert('No subject selected. Please select a subject first.');
+      return;
+    }
 
     setModalLoading(true);
     try {
-      const payload = {
-        ...editingQuestion,
-        subject_id: editingQuestion.subject_id || selectedSubject,
-        part: editingQuestion.part || selectedPart,
+      // Destructure to separate metadata from the data we want to save
+      const { id, created_at, updated_at, ...rest } = editingQuestion as any;
+      
+      const dataToSave = {
+        ...rest,
+        subject_id: rest.subject_id || selectedSubject,
+        part: rest.part || selectedPart,
         created_by: profile.id,
         updated_at: new Date().toISOString()
       };
 
-      if (editingQuestion.id) {
-        const { error } = await supabase
+      console.log('Attempting to save question:', dataToSave);
+
+      let result;
+      if (id) {
+        result = await supabase
           .from('practice_questions')
-          .update(payload)
-          .eq('id', editingQuestion.id);
-        if (error) throw error;
+          .update(dataToSave)
+          .eq('id', id);
       } else {
-        const { error } = await supabase
+        result = await supabase
           .from('practice_questions')
-          .insert([payload]);
-        if (error) throw error;
+          .insert([dataToSave]);
+      }
+
+      if (result.error) {
+        console.error('Supabase error:', result.error);
+        throw new Error(result.error.message || 'Database error occurred');
       }
 
       setIsModalOpen(false);
       setEditingQuestion(null);
-      fetchQuestions();
-    } catch (err) {
-      console.error('Error saving question:', err);
-      alert('Failed to save question. Please check all fields.');
+      await fetchQuestions();
+      setToastType('success');
+      setToastMessage(id ? 'Question updated successfully!' : 'Question created successfully!');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+    } catch (err: any) {
+      console.error('Full save error:', err);
+      const errorMessage = err.message || (typeof err === 'string' ? err : 'Unknown error');
+      setToastType('error');
+      setToastMessage(`Save failed: ${errorMessage}`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 5000);
     } finally {
       setModalLoading(false);
     }
@@ -126,13 +217,23 @@ const PracticeManager: React.FC = () => {
         .delete()
         .eq('id', id);
       if (error) throw error;
-      fetchQuestions();
-    } catch (err) {
+      
+      await fetchQuestions();
+      setToastType('delete');
+      setToastMessage('Question deleted successfully');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 4000);
+    } catch (err: any) {
       console.error('Error deleting question:', err);
+      setToastType('error');
+      setToastMessage(`Delete failed: ${err.message || 'Check your permissions.'}`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 5000);
     }
   };
 
   const openAddModal = () => {
+    console.log('Opening Add Modal...');
     setEditingQuestion({
       subject_id: selectedSubject,
       part: selectedPart,
@@ -148,6 +249,7 @@ const PracticeManager: React.FC = () => {
   };
 
   const openEditModal = (q: PracticeQuestion) => {
+    console.log('Opening Edit Modal...', q);
     setEditingQuestion(q);
     setIsModalOpen(true);
   };
@@ -200,6 +302,13 @@ const PracticeManager: React.FC = () => {
 
       {/* Questions List */}
       <div className="space-y-4">
+        {/* Toast Notification */}
+        <Toast 
+          visible={showToast} 
+          message={toastMessage} 
+          type={toastType}
+          onClose={() => setShowToast(false)} 
+        />
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="animate-spin text-blue-600" size={40} />
@@ -208,7 +317,14 @@ const PracticeManager: React.FC = () => {
           <div className="text-center py-20 bg-white/50 rounded-3xl border-2 border-dashed border-slate-200">
             <AlertCircle className="mx-auto text-slate-300 mb-4" size={48} />
             <h3 className="text-xl font-bold text-slate-600">No questions found</h3>
-            <p className="text-slate-400">Start by adding a new question to this part.</p>
+            <p className="text-slate-400 mb-6">Start by adding a new question to this part.</p>
+            <button 
+              onClick={openAddModal}
+              className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2 mx-auto"
+            >
+              <Plus size={18} />
+              Add First Question
+            </button>
           </div>
         ) : (
           questions.map((q, idx) => (
@@ -259,13 +375,13 @@ const PracticeManager: React.FC = () => {
 
       {/* Modal */}
       <AnimatePresence>
-        {isModalOpen && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+        {isModalOpen && (
+          <ModalShell onClose={() => setIsModalOpen(false)}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+              className="bg-white rounded-3xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             >
               <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <h3 className="text-xl font-bold text-slate-800">
@@ -365,8 +481,7 @@ const PracticeManager: React.FC = () => {
                 </div>
               </form>
             </motion.div>
-          </div>,
-          document.body
+          </ModalShell>
         )}
       </AnimatePresence>
     </div>
