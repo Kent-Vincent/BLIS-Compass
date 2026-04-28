@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -15,34 +15,16 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
-  XCircle
+  ArrowLeft,
+  ChevronLeft,
+  ChevronDown,
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
 import { PracticeSubject, PracticeQuestion } from '../../types';
 import GlassCard from '../../components/GlassCard';
 import { useAuth } from '../../context/AuthContext';
-
-interface ModalShellProps {
-  children: React.ReactNode;
-  onClose: () => void;
-}
-
-const ModalShell: React.FC<ModalShellProps> = ({ children, onClose }) => {
-  return createPortal(
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-      className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4"
-    >
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl">
-        {children}
-      </div>
-    </motion.div>,
-    document.body
-  );
-};
 
 const Toast: React.FC<{ message: string; visible: boolean; type?: 'success' | 'error' | 'delete'; onClose: () => void }> = ({ message, visible, type = 'success', onClose }) => {
   const getColors = () => {
@@ -54,6 +36,8 @@ const Toast: React.FC<{ message: string; visible: boolean; type?: 'success' | 'e
   };
 
   const Icon = type === 'delete' ? Trash2 : (type === 'error' ? AlertCircle : CheckCircle2);
+
+  if (typeof document === 'undefined') return null;
 
   return createPortal(
     <AnimatePresence>
@@ -78,6 +62,61 @@ const Toast: React.FC<{ message: string; visible: boolean; type?: 'success' | 'e
   );
 };
 
+interface DeleteModalProps {
+  visible: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const DeleteConfirmModal: React.FC<DeleteModalProps> = ({ visible, onConfirm, onCancel }) => {
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {visible && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onCancel}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden relative z-10 p-8 text-center"
+          >
+            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <Trash2 size={40} />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Remove Question?</h3>
+            <p className="text-slate-500 mb-8 leading-relaxed">
+              Are you sure you want to delete this question? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={onCancel}
+                className="flex-1 py-3.5 px-6 rounded-2xl font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className="flex-1 py-3.5 px-6 rounded-2xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-100 transition-all"
+              >
+                Delete
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
+};
+
 const PracticeManager: React.FC = () => {
   const { profile } = useAuth();
   const [subjects, setSubjects] = useState<PracticeSubject[]>([]);
@@ -85,20 +124,37 @@ const PracticeManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedPart, setSelectedPart] = useState<number>(1);
-  const [mounted, setMounted] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  
+  // Editor state
+  const [editingData, setEditingData] = useState<Partial<PracticeQuestion> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showNavigator, setShowNavigator] = useState(true);
   
   // Modal states
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingQuestion, setEditingQuestion] = useState<Partial<PracticeQuestion> | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | undefined>(undefined);
+  
+  // Toast states
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'delete'>('success');
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    setMounted(true);
     fetchSubjects();
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
   }, []);
+
+  const showToastNotification = (message: string, type: 'success' | 'error' | 'delete') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastType(type);
+    setToastMessage(message);
+    setShowToast(true);
+    toastTimeoutRef.current = setTimeout(() => setShowToast(false), 4000);
+  };
 
   useEffect(() => {
     if (selectedSubject) {
@@ -130,10 +186,17 @@ const PracticeManager: React.FC = () => {
         .select('*')
         .eq('subject_id', selectedSubject)
         .eq('part', selectedPart)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
       
       if (error) throw error;
       setQuestions(data || []);
+      if (data && data.length > 0) {
+        setSelectedIndex(0);
+        setEditingData(data[0]);
+      } else {
+        setSelectedIndex(null);
+        setEditingData(null);
+      }
     } catch (err) {
       console.error('Error fetching questions:', err);
     } finally {
@@ -141,36 +204,32 @@ const PracticeManager: React.FC = () => {
     }
   };
 
-  const handleSaveQuestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingQuestion) {
-      alert('No question data to save.');
-      return;
-    }
-    if (!profile) {
-      alert('User profile not loaded. Please try logging in again.');
+  const handleSelectQuestion = (index: number) => {
+    setSelectedIndex(index);
+    setEditingData(questions[index]);
+  };
+
+  const handleUpdateEditingData = (updates: Partial<PracticeQuestion>) => {
+    if (!editingData) return;
+    setEditingData({ ...editingData, ...updates });
+  };
+
+  const handleSave = async () => {
+    if (!editingData || !profile) {
+      showToastNotification('User profile not loaded or invalid data.', 'error');
       return;
     }
 
-    if (!selectedSubject) {
-      alert('No subject selected. Please select a subject first.');
-      return;
-    }
-
-    setModalLoading(true);
+    setSaving(true);
     try {
-      // Destructure to separate metadata from the data we want to save
-      const { id, created_at, updated_at, ...rest } = editingQuestion as any;
-      
+      const { id, created_at, updated_at, ...rest } = editingData as any;
       const dataToSave = {
         ...rest,
-        subject_id: rest.subject_id || selectedSubject,
-        part: rest.part || selectedPart,
+        subject_id: selectedSubject,
+        part: selectedPart,
         created_by: profile.id,
         updated_at: new Date().toISOString()
       };
-
-      console.log('Attempting to save question:', dataToSave);
 
       let result;
       if (id) {
@@ -181,60 +240,86 @@ const PracticeManager: React.FC = () => {
       } else {
         result = await supabase
           .from('practice_questions')
-          .insert([dataToSave]);
+          .insert([dataToSave])
+          .select()
+          .single();
       }
 
-      if (result.error) {
-        console.error('Supabase error:', result.error);
-        throw new Error(result.error.message || 'Database error occurred');
-      }
+      if (result.error) throw result.error;
 
-      setIsModalOpen(false);
-      setEditingQuestion(null);
+      showToastNotification(
+        id ? 'Question updated successfully!' : 'Question created successfully!',
+        'success'
+      );
+      
+      // Refresh list
       await fetchQuestions();
-      setToastType('success');
-      setToastMessage(id ? 'Question updated successfully!' : 'Question created successfully!');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 4000);
+      
+      // If it was a new question, the fetchQuestions will select the first one.
+      // If we want to select the one we just saved, we'd need to find its index.
+      // But fetchQuestions resets everything for simplicity now.
     } catch (err: any) {
-      console.error('Full save error:', err);
-      const errorMessage = err.message || (typeof err === 'string' ? err : 'Unknown error');
-      setToastType('error');
-      setToastMessage(`Save failed: ${errorMessage}`);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000);
+      console.error('Save error:', err);
+      showToastNotification(`Save failed: ${err.message}`, 'error');
     } finally {
-      setModalLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleDeleteQuestion = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this question?')) return;
+  const confirmDelete = async () => {
+    const id = deletingId;
+    setShowDeleteModal(false);
+    setDeletingId(undefined);
+
+    if (!id) {
+      // Handle draft question removal (unsaved)
+      if (selectedIndex === null) return;
+      
+      const indexToRemove = selectedIndex;
+      const updatedQuestions = questions.filter((_, idx) => idx !== indexToRemove);
+      
+      setQuestions(updatedQuestions);
+      
+      if (updatedQuestions.length > 0) {
+        const newIndex = Math.min(indexToRemove, updatedQuestions.length - 1);
+        setSelectedIndex(newIndex);
+        setEditingData(updatedQuestions[newIndex]);
+      } else {
+        setSelectedIndex(null);
+        setEditingData(null);
+      }
+      showToastNotification('Draft question removed', 'delete');
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from('practice_questions')
         .delete()
         .eq('id', id);
+      
       if (error) throw error;
       
+      showToastNotification('Question deleted successfully', 'delete');
       await fetchQuestions();
-      setToastType('delete');
-      setToastMessage('Question deleted successfully');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 4000);
     } catch (err: any) {
-      console.error('Error deleting question:', err);
-      setToastType('error');
-      setToastMessage(`Delete failed: ${err.message || 'Check your permissions.'}`);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000);
+      console.error('Delete error:', err);
+      showToastNotification(`Delete failed: ${err.message}`, 'error');
     }
   };
 
-  const openAddModal = () => {
-    console.log('Opening Add Modal...');
-    setEditingQuestion({
+  const handleDelete = (id?: string) => {
+    setDeletingId(id);
+    setShowDeleteModal(true);
+  };
+
+  const addNewQuestion = () => {
+    if (questions.length >= 20) {
+      showToastNotification('Maximum limit of 20 questions reached for this part.', 'error');
+      return;
+    }
+
+    const newQ: Partial<PracticeQuestion> = {
       subject_id: selectedSubject,
       part: selectedPart,
       question: '',
@@ -244,64 +329,80 @@ const PracticeManager: React.FC = () => {
       choice_d: '',
       correct_answer: 'a',
       explanation: ''
-    });
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (q: PracticeQuestion) => {
-    console.log('Opening Edit Modal...', q);
-    setEditingQuestion(q);
-    setIsModalOpen(true);
+    };
+    
+    // UI hack: Add it to the local questions list so it appears in sidebar
+    setQuestions([...questions, newQ as PracticeQuestion]);
+    setSelectedIndex(questions.length);
+    setEditingData(newQ);
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-800">Practice Sets Manager</h2>
-          <p className="text-slate-500">Create and manage practice questions for each subject and part.</p>
+    <div className="h-[calc(100vh-120px)] flex flex-col -mx-4 -mt-8">
+      {/* Header */}
+      <div id="practice-manager-header" className="flex justify-between items-center bg-white border-b border-slate-200 px-6 py-3 z-20">
+        <div id="header-title-container" className="flex items-center gap-4">
+          <div className="hidden md:block">
+            <h1 id="page-title" className="text-lg font-bold text-slate-800">Practice Sets Manager</h1>
+            <p id="page-subtitle" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Subject: {subjects.find(s => s.id === selectedSubject)?.name || 'None'} • Part {selectedPart} • <span id="question-counter" className={questions.length >= 20 ? 'text-red-500' : 'text-blue-500'}>{questions.length}/20 Questions</span>
+            </p>
+          </div>
         </div>
-        <button 
-          onClick={openAddModal}
-          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2"
-        >
-          <Plus size={20} />
-          Add Question
-        </button>
+        
+        <div id="header-actions" className="flex items-center gap-3">
+          <div id="filters-container" className="flex items-center gap-3 mr-4">
+             <div className="flex flex-col">
+               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-0.5">Subject</label>
+               <select 
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all min-w-[170px]"
+              >
+                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+             </div>
+             <div className="flex flex-col">
+               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-0.5">Part</label>
+               <select 
+                value={selectedPart}
+                onChange={(e) => setSelectedPart(parseInt(e.target.value))}
+                className="h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all"
+              >
+                {[1, 2, 3, 4, 5].map(p => <option key={p} value={p}>Part {p}</option>)}
+              </select>
+             </div>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-[9px] font-black text-transparent select-none uppercase tracking-widest ml-1 mb-0.5">Action</label>
+            <button 
+              id="add-question-btn"
+              onClick={addNewQuestion}
+              disabled={questions.length >= 20}
+              className="h-10 px-5 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              <Plus size={16} />
+              <span className="hidden lg:inline">Add Question</span>
+            </button>
+          </div>
+          
+          <div className="flex flex-col">
+            <label className="text-[9px] font-black text-transparent select-none uppercase tracking-widest ml-1 mb-0.5">Action</label>
+            <button 
+              id="save-changes-btn"
+              onClick={handleSave}
+              disabled={saving || !editingData}
+              className="h-10 px-6 bg-blue-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 text-sm"
+            >
+              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+              Save Changes
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Filters */}
-      <GlassCard className="p-4 border-white/60">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-grow">
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Subject</label>
-            <select 
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-700"
-            >
-              {subjects.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="w-full md:w-48">
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Part</label>
-            <select 
-              value={selectedPart}
-              onChange={(e) => setSelectedPart(parseInt(e.target.value))}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-700"
-            >
-              {[1, 2, 3, 4, 5].map(p => (
-                <option key={p} value={p}>Part {p}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </GlassCard>
-
-      {/* Questions List */}
-      <div className="space-y-4">
+      <div className="flex flex-1 overflow-hidden">
         {/* Toast Notification */}
         <Toast 
           visible={showToast} 
@@ -309,181 +410,234 @@ const PracticeManager: React.FC = () => {
           type={toastType}
           onClose={() => setShowToast(false)} 
         />
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="animate-spin text-blue-600" size={40} />
-          </div>
-        ) : questions.length === 0 ? (
-          <div className="text-center py-20 bg-white/50 rounded-3xl border-2 border-dashed border-slate-200">
-            <AlertCircle className="mx-auto text-slate-300 mb-4" size={48} />
-            <h3 className="text-xl font-bold text-slate-600">No questions found</h3>
-            <p className="text-slate-400 mb-6">Start by adding a new question to this part.</p>
-            <button 
-              onClick={openAddModal}
-              className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2 mx-auto"
-            >
-              <Plus size={18} />
-              Add First Question
-            </button>
-          </div>
-        ) : (
-          questions.map((q, idx) => (
-            <GlassCard key={q.id} className="p-6 border-white/60 hover:border-blue-200 transition-all">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-grow">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="bg-blue-50 text-blue-600 text-xs font-black px-2 py-1 rounded-md uppercase">Q{questions.length - idx}</span>
-                    <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">
-                      Correct: <span className="text-emerald-600">{q.correct_answer.toUpperCase()}</span>
-                    </span>
-                  </div>
-                  <h4 className="text-lg font-bold text-slate-800 mb-4 leading-relaxed">{q.question}</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    {['a', 'b', 'c', 'd'].map(key => (
-                      <div key={key} className={`p-3 rounded-xl border flex items-center gap-3 ${
-                        q.correct_answer === key ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-600'
-                      }`}>
-                        <span className={`w-6 h-6 rounded-md flex items-center justify-center font-bold text-xs ${
-                          q.correct_answer === key ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'
-                        }`}>
-                          {key.toUpperCase()}
-                        </span>
-                        {q[`choice_${key}` as keyof PracticeQuestion]}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button 
-                    onClick={() => openEditModal(q)}
-                    className="p-3 text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteQuestion(q.id)}
-                    className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            </GlassCard>
-          ))
-        )}
-      </div>
 
-      {/* Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <ModalShell onClose={() => setIsModalOpen(false)}>
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmModal
+          visible={showDeleteModal}
+          onConfirm={confirmDelete}
+          onCancel={() => {
+            setShowDeleteModal(false);
+            setDeletingId(undefined);
+          }}
+        />
+
+        {/* Sidebar Navigator */}
+        <AnimatePresence initial={false}>
+          {showNavigator && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              className="bg-white border-r border-slate-200 flex flex-col overflow-hidden"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="text-xl font-bold text-slate-800">
-                  {editingQuestion?.id ? 'Edit Question' : 'Add New Question'}
-                </h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
-                  <X size={20} />
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="font-bold text-slate-800 text-xs uppercase tracking-widest">Question List</h3>
+                <button 
+                  onClick={() => setShowNavigator(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg lg:hidden"
+                >
+                  <Plus size={16} className="rotate-45" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveQuestion} className="p-6 overflow-y-auto space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Question Text</label>
-                  <textarea 
-                    required
-                    rows={3}
-                    value={editingQuestion?.question || ''}
-                    onChange={(e) => setEditingQuestion({...editingQuestion!, question: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                    placeholder="Enter the question here..."
-                  />
-                </div>
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                {loading ? (
+                  <div className="flex justify-center py-10">
+                    <Loader2 className="animate-spin text-blue-600" size={24} />
+                  </div>
+                ) : questions.length === 0 ? (
+                  <div className="text-center py-10">
+                    <p className="text-xs font-bold text-slate-400">No questions yet</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-3">
+                    {questions.map((q, idx) => {
+                      const isSelected = selectedIndex === idx;
+                      const isNew = !q.id;
+                      
+                      return (
+                        <button
+                          key={q.id || `new-${idx}`}
+                          onClick={() => handleSelectQuestion(idx)}
+                          className={`aspect-square rounded-2xl transition-all flex items-center justify-center border font-bold text-sm relative ${
+                            isSelected ? 'ring-2 ring-blue-500 ring-offset-2 z-10 box-content' : ''
+                          } ${
+                            isNew 
+                              ? 'bg-blue-50 text-blue-600 border-blue-200 border-dashed'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:bg-slate-50 shadow-sm'
+                          }`}
+                        >
+                          {idx + 1}
+                          {isNew && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {['a', 'b', 'c', 'd'].map(key => (
-                    <div key={key}>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Choice {key.toUpperCase()}</label>
-                      <input 
-                        required
-                        type="text"
-                        value={editingQuestion?.[`choice_${key}` as keyof PracticeQuestion] as string || ''}
-                        onChange={(e) => setEditingQuestion({...editingQuestion!, [`choice_${key}`]: e.target.value})}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                        placeholder={`Option ${key.toUpperCase()}`}
+        {/* Main Editor Area */}
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6 custom-scrollbar">
+          <div className="max-w-4xl mx-auto">
+            {!showNavigator && (
+              <button 
+                onClick={() => setShowNavigator(true)}
+                className="flex items-center gap-2 text-blue-600 font-bold text-sm hover:bg-blue-50 px-3 py-1.5 rounded-xl transition-all mb-4"
+              >
+                <FileText size={16} />
+                Show Navigator
+              </button>
+            )}
+
+            {editingData ? (
+              <motion.div
+                key={selectedIndex}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <GlassCard className="p-5 md:p-6 border-slate-200 shadow-xl shadow-slate-200/50">
+                  <div className="flex justify-between items-start mb-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">
+                        {(selectedIndex || 0) + 1}
+                      </div>
+                      <div>
+                        <h2 className="text-md font-bold text-slate-800">Question Editor</h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          {editingData.id ? `Question #${(selectedIndex || 0) + 1}` : 'Draft Question'}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleDelete(editingData.id)}
+                      className="h-9 px-3 text-red-100 bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-lg shadow-red-100 flex items-center gap-2 text-[10px] font-bold"
+                      title="Remove Question"
+                    >
+                      <Trash2 size={14} />
+                      Remove Question
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Question Text</label>
+                      <textarea
+                        value={editingData.question || ''}
+                        onChange={(e) => handleUpdateEditingData({ question: e.target.value })}
+                        rows={2}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none leading-relaxed"
+                        placeholder="Type your question here..."
                       />
                     </div>
-                  ))}
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Correct Answer</label>
-                    <select 
-                      required
-                      value={editingQuestion?.correct_answer || 'a'}
-                      onChange={(e) => setEditingQuestion({...editingQuestion!, correct_answer: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                    >
-                      <option value="a">Choice A</option>
-                      <option value="b">Choice B</option>
-                      <option value="c">Choice C</option>
-                      <option value="d">Choice D</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Re-assign Part</label>
-                    <select 
-                      required
-                      value={editingQuestion?.part || selectedPart}
-                      onChange={(e) => setEditingQuestion({...editingQuestion!, part: parseInt(e.target.value)})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                    >
-                      {[1, 2, 3, 4, 5].map(p => (
-                        <option key={p} value={p}>Part {p}</option>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {(['a', 'b', 'c', 'd'] as const).map((key) => (
+                        <div key={key} className="space-y-1 relative group">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Choice {key}</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-[9px] text-slate-400 group-focus-within:bg-blue-100 group-focus-within:text-blue-600 transition-colors uppercase">
+                              {key}
+                            </span>
+                            <input
+                              type="text"
+                              value={editingData[`choice_${key}`] || ''}
+                              onChange={(e) => handleUpdateEditingData({ [`choice_${key}`]: e.target.value })}
+                              className="h-10 w-full bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-24 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                              placeholder={`Option ${key.toUpperCase()}`}
+                            />
+                            <button
+                              onClick={() => handleUpdateEditingData({ correct_answer: key })}
+                              className={`absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2.5 rounded-lg text-[8px] font-bold transition-all flex items-center gap-1.5 ${
+                                editingData.correct_answer === key
+                                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                                  : 'bg-white text-slate-400 border border-slate-200 hover:border-emerald-300 hover:text-emerald-500 shadow-sm'
+                              }`}
+                            >
+                              {editingData.correct_answer === key ? <CheckCircle2 size={10} /> : <div className="w-2 h-2 rounded-full border-2 border-slate-200" />}
+                              Correct
+                            </button>
+                          </div>
+                        </div>
                       ))}
-                    </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Explanation (Optional)</label>
+                      <textarea
+                        value={editingData.explanation || ''}
+                        onChange={(e) => handleUpdateEditingData({ explanation: e.target.value })}
+                        rows={1}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none"
+                        placeholder="Explain why the answer is correct..."
+                      />
+                    </div>
+
+                    <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                      <button
+                        onClick={() => handleSelectQuestion(selectedIndex! - 1)}
+                        disabled={selectedIndex === 0}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-slate-500 hover:text-slate-800 hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronLeft size={18} />
+                        Previous
+                      </button>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Q{(selectedIndex || 0) + 1} / {questions.length}
+                        </span>
+                        <button
+                          onClick={() => {
+                            if (selectedIndex! < questions.length - 1) {
+                              handleSelectQuestion(selectedIndex! + 1);
+                            } else {
+                              addNewQuestion();
+                            }
+                          }}
+                          className="flex items-center gap-2 h-10 px-5 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all text-sm"
+                        >
+                          {selectedIndex === questions.length - 1 ? (
+                            <>
+                              <Plus size={16} />
+                              Add Next
+                            </>
+                          ) : (
+                            <>
+                              Next Question
+                              <ChevronRight size={18} />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
+                </GlassCard>
+              </motion.div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center py-20 px-8">
+                <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center text-slate-300 mb-6">
+                  <BookOpen size={40} />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Explanation (Optional)</label>
-                  <textarea 
-                    rows={2}
-                    value={editingQuestion?.explanation || ''}
-                    onChange={(e) => setEditingQuestion({...editingQuestion!, explanation: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-                    placeholder="Explain why the answer is correct..."
-                  />
-                </div>
-
-                <div className="flex gap-4 pt-4">
-                  <button 
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-4 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    disabled={modalLoading}
-                    className="flex-1 py-4 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
-                  >
-                    {modalLoading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                    Save Question
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </ModalShell>
-        )}
-      </AnimatePresence>
+                <h3 className="text-xl font-bold text-slate-700 mb-2">No question selected</h3>
+                <p className="text-slate-400 max-w-xs mx-auto mb-8 leading-relaxed">
+                  Select a question from the list to edit its content or create a new one.
+                </p>
+                <button 
+                  onClick={addNewQuestion}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-3"
+                >
+                  <Plus size={24} />
+                  Add First Question
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
