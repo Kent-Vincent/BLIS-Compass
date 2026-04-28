@@ -4,14 +4,17 @@ import {
   Trophy, 
   RotateCcw,
   ArrowRight,
+  ArrowLeft,
   Tags,
   CheckCircle2,
   XCircle,
   Info
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { SHELF_SHUFFLE_LEVELS, ShelfBook, ShelfShuffleLevel } from '../data/shelfShuffleData';
 
 export default function ShelfShuffle() {
+  const navigate = useNavigate();
   const [gameState, setGameState] = useState<'start' | 'playing' | 'finished'>('start');
   const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
   const [books, setBooks] = useState<ShelfBook[]>([]);
@@ -62,6 +65,15 @@ export default function ShelfShuffle() {
   if (gameState === 'start') {
     return (
       <div className="max-w-2xl mx-auto text-center py-12 px-4">
+        <div className="flex justify-start mb-6">
+          <button
+            onClick={() => navigate('/student/games')}
+            className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 transition-all font-bold text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Games
+          </button>
+        </div>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -88,6 +100,15 @@ export default function ShelfShuffle() {
   if (gameState === 'finished') {
     return (
       <div className="max-w-2xl mx-auto text-center py-12 px-4">
+        <div className="flex justify-start mb-6">
+          <button
+            onClick={() => navigate('/student/games')}
+            className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 transition-all font-bold text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Exit to Dashboard
+          </button>
+        </div>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -118,6 +139,13 @@ export default function ShelfShuffle() {
     <div className="max-w-4xl mx-auto py-8 px-4">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/student/games')}
+            className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+            title="Back to Games"
+          >
+            <ArrowLeft size={20} />
+          </button>
           <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
             <Trophy className="w-4 h-4 text-yellow-500" />
             <span className="font-bold text-slate-700">Score: {score}</span>
@@ -134,18 +162,28 @@ export default function ShelfShuffle() {
           <p className="text-sm font-medium">Drag the books to reorder them correctly.</p>
         </div>
 
-        <Reorder.Group axis="x" values={books} onReorder={setBooks} className="flex gap-4 overflow-x-auto pb-4">
+        <Reorder.Group 
+          axis="x" 
+          values={books} 
+          onReorder={setBooks} 
+          className="flex flex-nowrap gap-2 md:gap-4 justify-center w-full"
+        >
           {books.map((book) => (
             <Reorder.Item
               key={book.id}
               value={book}
-              className="flex-shrink-0 w-32 h-48 bg-white rounded-xl shadow-md border-2 border-slate-200 cursor-grab active:cursor-grabbing p-4 flex flex-col justify-center items-center text-center group hover:border-blue-400 transition-colors"
+              whileDrag={{ 
+                scale: 1.05,
+                boxShadow: "0 15px 30px -10px rgba(59, 130, 246, 0.4)",
+                zIndex: 50
+              }}
+              className="w-[clamp(70px,9vw,120px)] h-44 md:h-56 bg-white rounded-xl shadow-md border-2 border-slate-200 cursor-grab active:cursor-grabbing p-2 md:p-4 flex flex-col justify-center items-center text-center group hover:border-blue-400 transition-colors"
             >
               <div className="w-full h-1 bg-slate-200 rounded-full mb-4"></div>
               <div className="space-y-1">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Call Number</p>
-                <p className="text-lg font-black text-slate-800 leading-tight">{book.callNumber.line1}</p>
-                <p className="text-sm font-bold text-slate-600">{book.callNumber.line2}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Call Number</p>
+                <p className="text-sm md:text-lg font-black text-slate-800 leading-tight">{book.callNumber.line1}</p>
+                <p className="text-xs md:text-sm font-bold text-slate-600">{book.callNumber.line2}</p>
               </div>
               <div className="w-full h-1 bg-slate-200 rounded-full mt-4"></div>
             </Reorder.Item>
