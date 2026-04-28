@@ -7,13 +7,15 @@ import ExamBuilderPage from './staff/ExamBuilderPage';
 import PracticeManager from './staff/PracticeManager';
 import AccountManager from './staff/AccountManager';
 import AnalyticsPage from './staff/AnalyticsPage';
+import QuestionBankPage from './staff/QuestionBankPage';
 import { motion } from 'motion/react';
-import { Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Users, BookOpen, GraduationCap, TrendingUp, Database } from 'lucide-react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Overview: React.FC = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = profile?.role === 'admin';
 
   const stats = [
@@ -74,11 +76,17 @@ const Overview: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h3 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h3>
           <div className="grid grid-cols-1 gap-3">
-            <button className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors">
+            <button 
+              onClick={() => navigate('/staff/mock-exams')}
+              className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors"
+            >
               Create New Exam
             </button>
-            <button className="w-full py-3 px-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors">
-              Add Question
+            <button 
+              onClick={() => navigate('/staff/practice')}
+              className="w-full py-3 px-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors"
+            >
+              Manage Practice Sets
             </button>
             <button className="w-full py-3 px-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors">
               Export Reports
@@ -127,8 +135,8 @@ const StaffDashboard: React.FC = () => {
           <Routes>
             <Route path="overview" element={<Overview />} />
             <Route path="accounts" element={<AccountManager />} />
-            <Route path="questions" element={<PlaceholderPage title="Manage Questions" />} />
             <Route path="practice" element={<PracticeManager />} />
+            <Route path="question-bank" element={<QuestionBankPage />} />
             <Route path="mock-exams" element={<MockExamsPage />} />
             <Route path="mock-exams/:id" element={<ExamBuilderPage />} />
             <Route path="rooms" element={<PlaceholderPage title="Mockboard Rooms" />} />

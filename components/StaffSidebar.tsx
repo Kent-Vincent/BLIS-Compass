@@ -10,7 +10,8 @@ import {
   Settings, 
   LogOut,
   Loader2,
-  Compass
+  Compass,
+  Database
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { NavLink } from 'react-router-dom';
@@ -23,9 +24,9 @@ const StaffSidebar: React.FC = () => {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/staff/overview' },
     { icon: Users, label: isAdmin ? 'Manage Accounts' : 'Manage Students', path: '/staff/accounts' },
-    { icon: BookOpen, label: 'Manage Questions', path: '/staff/questions' },
     { icon: BookOpen, label: 'Practice Sets', path: '/staff/practice' },
     { icon: FileText, label: 'Mock Exams', path: '/staff/mock-exams' },
+    { icon: Database, label: 'Question Bank', path: '/staff/question-bank' },
     { icon: DoorOpen, label: 'Mockboard Rooms', path: '/staff/rooms' },
     { icon: BarChart3, label: 'Reports/Analytics', path: '/staff/analytics' },
     { icon: Settings, label: 'Settings', path: '/staff/settings' },

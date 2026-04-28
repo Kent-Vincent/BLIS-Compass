@@ -19,7 +19,8 @@ import {
   Flag,
   LayoutGrid,
   ShieldCheck,
-  Download
+  Download,
+  Lock
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -50,12 +51,37 @@ const TakeExamPage: React.FC = () => {
   const [activeSection, setActiveSection] = useState(0);
   const [showReviewModal, setShowReviewModal] = useState(false);
 
+  // Derived state for counters
+  const flaggedTotal = Object.values(flagged).filter(Boolean).length;
+  const answeredTotal = Object.keys(answers).length;
+  const unansweredTotal = items.length - answeredTotal;
+
   const sectionSize = 100;
-  const sections = Array.from({ length: 6 }, (_, i) => ({
-    label: `${i * sectionSize + 1}-${(i + 1) * sectionSize}`,
-    start: i * sectionSize,
-    end: (i + 1) * sectionSize
-  }));
+  const sections = Array.from({ length: 6 }, (_, i) => {
+    const start = i * sectionSize;
+    const end = Math.min((i + 1) * sectionSize, items.length);
+    
+    // A section is complete if all its questions are answered
+    const sectionItems = items.slice(start, end);
+    const isComplete = sectionItems.length > 0 && sectionItems.every(item => answers[item.id]);
+    
+    // Section is locked if it's not the first section and the previous section is not complete
+    // Temporary override: Section 501-600 (index 5) is always unlocked for demo purposes
+    const isLocked = i > 0 && i !== 5 && (() => {
+      const prevStart = (i - 1) * sectionSize;
+      const prevEnd = i * sectionSize;
+      const prevItems = items.slice(prevStart, prevEnd);
+      return prevItems.length > 0 && !prevItems.every(item => answers[item.id]);
+    })();
+
+    return {
+      label: `${start + 1}-${end}`,
+      start,
+      end,
+      isComplete,
+      isLocked
+    };
+  });
 
   const fetchExamData = useCallback(async (retryCount = 0) => {
     try {
@@ -588,256 +614,296 @@ const TakeExamPage: React.FC = () => {
   const currentItem = items[currentIndex];
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-8 pb-20">
-      {/* Header */}
-      <div className="flex justify-between items-center sticky top-0 bg-slate-50/90 backdrop-blur-md z-50 py-4 -mx-4 px-4 border-b border-slate-200/50">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate('/student/mock-exams')}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-800 line-clamp-1">
-                Mock Board Examination
-              </h1>
-              <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 flex items-center gap-1">
-                <ShieldCheck size={10} />
-                Official Format
+    <div className="h-screen w-full bg-slate-50 overflow-hidden flex flex-col p-2 md:p-4 lg:p-6 xl:p-8">
+      <div className="max-w-[1600px] mx-auto w-full flex flex-col h-full space-y-2 md:space-y-4 lg:space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center bg-white/90 backdrop-blur-md z-50 py-2 md:py-3 px-3 md:px-5 rounded-2xl md:rounded-[2rem] border border-slate-200/50 shadow-sm shrink-0">
+          <div className="flex items-center gap-1.5 md:gap-4">
+            <button 
+              onClick={() => navigate('/student/mock-exams')}
+              className="p-1 md:p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+            >
+              <ArrowLeft size={18} className="md:w-6 md:h-6" />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xs md:text-lg xl:text-xl font-bold text-slate-800 line-clamp-1">
+                  Mock Board Examination
+                </h1>
+                <div className="hidden sm:flex px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-600 items-center gap-1">
+                  <ShieldCheck size={10} />
+                  Official Format
+                </div>
+              </div>
+              <div className="flex items-center gap-2 md:gap-3 text-[8px] md:text-[10px] xl:text-xs font-bold text-slate-400 uppercase tracking-widest">
+                <span>Question {currentIndex + 1} of {items.length}</span>
+                {exam && <span className="text-slate-300">|</span>}
+                {exam && <span className="text-slate-500 hidden md:inline">{exam.title}</span>}
               </div>
             </div>
-            <div className="flex items-center gap-3 text-xs font-bold text-slate-400 uppercase tracking-widest">
-              <span>Question {currentIndex + 1} of {items.length}</span>
-              {exam && <span className="text-slate-300">|</span>}
-              {exam && <span className="text-slate-500">{exam.title}</span>}
+          </div>
+          
+          <div className="flex items-center gap-1.5 md:gap-4">
+            <div className="hidden xl:flex items-center gap-3 px-3 border-r border-slate-100 py-1">
+              <div className="flex flex-col items-center">
+                <span className="text-[8px] font-black text-indigo-600 uppercase">Answered</span>
+                <span className="text-xs font-bold text-slate-700">{answeredTotal}</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[8px] font-black text-orange-600 uppercase">Flagged</span>
+                <span className="text-xs font-bold text-slate-700">{flaggedTotal}</span>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setShowNav(!showNav)}
+              className={`p-1.5 md:p-3 rounded-xl transition-all ${showNav ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
+              title="Toggle Navigation Grid"
+            >
+              <LayoutGrid size={16} className="md:w-[20px] md:h-[20px]" />
+            </button>
+            <div className={`flex items-center gap-1.5 md:gap-3 px-2 md:px-6 py-1.5 md:py-3 rounded-[1rem] md:rounded-[1.25rem] font-mono font-bold text-sm md:text-xl shadow-lg border-2 ${timeLeft < 300 ? 'bg-red-50 text-red-600 border-red-100 animate-pulse' : 'bg-white text-slate-800 border-white'}`}>
+              <Clock size={14} className="md:w-5 md:h-5 text-indigo-500" />
+              {formatTime(timeLeft)}
             </div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setShowNav(!showNav)}
-            className={`p-3 rounded-xl transition-all ${showNav ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
-            title="Toggle Navigation Grid"
-          >
-            <LayoutGrid size={20} />
-          </button>
-          <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-mono font-bold text-xl shadow-lg border-2 ${timeLeft < 300 ? 'bg-red-50 text-red-600 border-red-100 animate-pulse' : 'bg-white text-slate-800 border-white'}`}>
-            <Clock size={20} />
-            {formatTime(timeLeft)}
-          </div>
-        </div>
-      </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Main Content */}
-        <div className="flex-1 space-y-8">
-          {/* Progress Bar */}
-          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+        <div className="flex flex-col lg:flex-row gap-3 md:gap-4 xl:gap-8 flex-1 min-h-0 overflow-hidden">
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col min-h-0 space-y-3 md:space-y-4">
+            {/* Progress Bar */}
+            <div className="w-full h-1 md:h-1.5 bg-slate-200 rounded-full overflow-hidden shrink-0">
+              <motion.div 
+                className="h-full bg-indigo-600"
+                initial={{ width: 0 }}
+                animate={{ width: `${((currentIndex + 1) / items.length) * 100}%` }}
+              />
+            </div>
+
+            {/* Question Card Area */}
+            <div className="flex-1 min-h-0 relative">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentIndex}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute inset-0"
+                >
+                  <GlassCard className="p-4 md:p-6 lg:p-8 border-white/60 h-full flex flex-col relative overflow-hidden group/card shadow-2xl">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-0 flex flex-col">
+                      <div className="mb-4 md:mb-6 shrink-0">
+                        <div className="flex items-center gap-2 mb-2 md:mb-3">
+                          <span className="text-[9px] md:text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 md:px-2.5 py-0.5 md:py-1 rounded-full uppercase tracking-wider">
+                            {subjects.find(s => s.id === currentItem.subject_id)?.name || 'General'}
+                          </span>
+                          <span className="text-[9px] md:text-[10px] font-bold text-slate-400 bg-slate-50 px-2 md:px-2.5 py-0.5 md:py-1 rounded-full uppercase tracking-wider">
+                            Item #{currentIndex + 1}
+                          </span>
+                        </div>
+                        <h2 className="text-sm md:text-lg lg:text-xl xl:text-2xl font-bold text-slate-800 leading-relaxed md:leading-snug">
+                          {currentItem.question}
+                        </h2>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 md:gap-3 py-2">
+                        {[
+                          { id: 'a', text: currentItem.choice_a, label: 'A' },
+                          { id: 'b', text: currentItem.choice_b, label: 'B' },
+                          { id: 'c', text: currentItem.choice_c, label: 'C' },
+                          { id: 'd', text: currentItem.choice_d, label: 'D' },
+                        ].map((choice) => (
+                          <button
+                            key={choice.id}
+                            onClick={() => handleSelectAnswer(choice.id)}
+                            className={`flex items-start md:items-center gap-3 md:gap-4 p-3 md:p-4 lg:p-5 rounded-xl md:rounded-2xl border-2 text-left transition-all group shrink-0 ${
+                              answers[currentItem.id] === choice.id 
+                                ? 'bg-indigo-50/50 border-indigo-600 ring-1 ring-indigo-600 shadow-sm' 
+                                : 'bg-white border-slate-100 hover:border-indigo-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className={`w-7 h-7 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center font-bold text-xs md:text-base transition-all shrink-0 mt-0.5 md:mt-0 ${
+                              answers[currentItem.id] === choice.id 
+                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'
+                            }`}>
+                              {choice.label}
+                            </div>
+                            <span className={`text-xs md:text-sm lg:text-base font-medium break-words py-0.5 ${answers[currentItem.id] === choice.id ? 'text-indigo-900' : 'text-slate-700'}`}>
+                              {choice.text}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </GlassCard>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* Navigation Controls */}
+            <div className="flex justify-between items-center py-2 shrink-0">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+                  disabled={currentIndex === 0}
+                  className="flex items-center gap-1 md:gap-2 px-3 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-[10px] md:text-sm text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 transition-all disabled:opacity-30"
+                >
+                  <ChevronLeft size={16} className="md:w-5 md:h-5" />
+                  <span className="hidden sm:inline">Previous</span>
+                </button>
+                <button 
+                  onClick={toggleFlag}
+                  className={`flex items-center gap-1 md:gap-2 px-3 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-[10px] md:text-sm transition-all ${flagged[currentItem.id] ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'text-slate-400 hover:bg-white border border-transparent hover:border-slate-200'}`}
+                >
+                  <Flag size={16} className="md:w-5 md:h-5" fill={flagged[currentItem.id] ? 'currentColor' : 'none'} />
+                  {flagged[currentItem.id] ? 'Unflag' : 'Flag'}
+                </button>
+              </div>
+
+              {currentIndex === items.length - 1 ? (
+                <button 
+                  onClick={handleSubmit}
+                  className="flex items-center gap-1 md:gap-2 px-4 md:px-8 py-2 md:py-3 bg-emerald-600 text-white rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95"
+                >
+                  Submit Exam
+                  <Send size={16} className="md:w-5 md:h-5" />
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setCurrentIndex(prev => Math.min(items.length - 1, prev + 1))}
+                  className="flex items-center gap-1 md:gap-2 px-6 md:px-10 py-2 md:py-3 bg-indigo-600 text-white rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+                >
+                  Next Question
+                  <ChevronRight size={16} className="md:w-5 md:h-5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar Navigation Grid */}
+          {showNav && (
             <motion.div 
-              className="h-full bg-indigo-600"
-              initial={{ width: 0 }}
-              animate={{ width: `${((currentIndex + 1) / items.length) * 100}%` }}
-            />
-          </div>
-
-          {/* Question Card */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentIndex}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
+              className="w-full lg:w-[260px] xl:w-[320px] shrink-0 h-full flex flex-col pointer-events-auto"
             >
-              <GlassCard className="p-10 border-white/60 min-h-[450px] flex flex-col relative overflow-hidden">
-                <div className="mb-10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-widest">
-                      {subjects.find(s => s.id === currentItem.subject_id)?.name || 'General'}
-                    </span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-slate-800 leading-relaxed">
-                    {currentItem.question}
-                  </h2>
+              <GlassCard className="p-3 md:p-4 xl:p-6 border-slate-200 h-full flex flex-col shadow-xl overflow-hidden">
+                <div className="flex items-center justify-between mb-3 shrink-0">
+                  <h3 className="font-bold text-slate-800 uppercase tracking-widest text-[9px] md:text-[11px]">Navigation</h3>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                    {answeredTotal} / {items.length}
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 mt-auto">
-                  {[
-                    { id: 'a', text: currentItem.choice_a, label: 'A' },
-                    { id: 'b', text: currentItem.choice_b, label: 'B' },
-                    { id: 'c', text: currentItem.choice_c, label: 'C' },
-                    { id: 'd', text: currentItem.choice_d, label: 'D' },
-                  ].map((choice) => (
+                <div className="flex xl:hidden items-center justify-between gap-1 mb-3 bg-slate-50 p-1.5 rounded-xl border border-slate-100 shrink-0">
+                  <div className="flex flex-col items-center flex-1">
+                    <span className="text-[7px] font-black text-indigo-600 uppercase">Ans.</span>
+                    <span className="text-[11px] font-bold text-slate-700">{answeredTotal}</span>
+                  </div>
+                  <div className="w-px h-3 bg-slate-200" />
+                  <div className="flex flex-col items-center flex-1">
+                    <span className="text-[7px] font-black text-orange-600 uppercase">Flag.</span>
+                    <span className="text-[11px] font-bold text-slate-700">{flaggedTotal}</span>
+                  </div>
+                </div>
+
+                {/* Pagination Tabs */}
+                <div className="flex flex-wrap gap-1 mb-3 shrink-0">
+                  {sections.map((section, idx) => (
                     <button
-                      key={choice.id}
-                      onClick={() => handleSelectAnswer(choice.id)}
-                      className={`flex items-center gap-6 p-6 rounded-2xl border-2 text-left transition-all group ${
-                        answers[currentItem.id] === choice.id 
-                          ? 'bg-indigo-50 border-indigo-600 ring-1 ring-indigo-600' 
-                          : 'bg-white border-slate-100 hover:border-indigo-200 hover:bg-slate-50'
+                      key={idx}
+                      disabled={section.isLocked}
+                      onClick={() => !section.isLocked && setActiveSection(idx)}
+                      className={`relative px-1.5 py-1 text-[8px] md:text-[9px] font-bold rounded-md md:rounded-lg transition-all flex items-center justify-center gap-0.5 ${
+                        activeSection === idx 
+                          ? 'bg-indigo-600 text-white shadow-md' 
+                          : section.isLocked
+                            ? 'bg-slate-50 text-slate-300 cursor-not-allowed border border-slate-100 opacity-60'
+                            : 'bg-white text-slate-400 border border-slate-100 hover:border-indigo-200 hover:text-indigo-500'
                       }`}
+                      title={section.isLocked ? "Complete all questions in the previous section first" : ""}
                     >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg transition-all ${
-                        answers[currentItem.id] === choice.id 
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                          : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'
-                      }`}>
-                        {choice.label}
-                      </div>
-                      <span className={`text-lg font-medium ${answers[currentItem.id] === choice.id ? 'text-indigo-900' : 'text-slate-700'}`}>
-                        {choice.text}
-                      </span>
+                      {section.label}
+                      {section.isLocked && <Lock size={8} />}
+                      {section.isComplete && !section.isLocked && (
+                        <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full border border-white" />
+                      )}
                     </button>
                   ))}
                 </div>
+
+                {/* Legend */}
+                <div className="grid grid-cols-2 gap-1.5 mb-3 p-1.5 bg-slate-50/50 rounded-lg border border-slate-100 shrink-0">
+                  <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-bold text-slate-500">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-white border border-slate-200" />
+                    Unans.
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-bold text-slate-500">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-indigo-600 shadow-sm" />
+                    Ans.
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-bold text-slate-500">
+                    <div className="w-2.5 h-2.5 rounded-sm bg-orange-500 shadow-sm" />
+                    Flag.
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-bold text-slate-500">
+                    <div className="w-2.5 h-2.5 rounded-sm border-[1.5px] border-indigo-600" />
+                    Curr.
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar min-h-0">
+                  <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-4 xl:grid-cols-6 gap-1 auto-rows-min pb-2">
+                    {items.slice(sections[activeSection].start, sections[activeSection].end).map((item, localIdx) => {
+                      const idx = sections[activeSection].start + localIdx;
+                      const isAnswered = !!answers[item.id];
+                      const isFlagged = !!flagged[item.id];
+                      const isCurrent = currentIndex === idx;
+
+                      let bgColor = 'bg-white';
+                      let textColor = 'text-slate-400';
+                      let borderColor = 'border-slate-100';
+
+                      if (isAnswered) {
+                        bgColor = 'bg-indigo-600';
+                        textColor = 'text-white';
+                        borderColor = 'border-indigo-600';
+                      }
+
+                      if (isFlagged) {
+                        bgColor = isAnswered ? 'bg-indigo-600' : 'bg-orange-500';
+                        textColor = 'text-white';
+                        borderColor = isAnswered ? 'border-orange-400 border-2' : 'border-orange-500';
+                      }
+
+                      if (isCurrent) {
+                        borderColor = isFlagged ? 'border-orange-500 border-2' : 'border-indigo-600 border-2';
+                        if (!isAnswered && !isFlagged) {
+                          textColor = 'text-indigo-600';
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => setCurrentIndex(idx)}
+                          className={`aspect-square rounded-md flex items-center justify-center font-bold text-[9px] md:text-[10px] transition-all border relative shadow-sm ${bgColor} ${textColor} ${borderColor} hover:scale-105 active:scale-95`}
+                        >
+                          {idx + 1}
+                          {isFlagged && (
+                            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-orange-500 rounded-full border border-white shadow-md z-10" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </GlassCard>
             </motion.div>
-          </AnimatePresence>
-
-          {/* Navigation Controls */}
-          <div className="flex justify-between items-center pt-4">
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
-                disabled={currentIndex === 0}
-                className="flex items-center gap-2 px-8 py-4 rounded-2xl font-bold text-slate-600 hover:bg-slate-100 transition-all disabled:opacity-30"
-              >
-                <ChevronLeft size={20} />
-                Previous
-              </button>
-              <button 
-                onClick={toggleFlag}
-                className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-bold transition-all ${flagged[currentItem.id] ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'text-slate-400 hover:bg-slate-100'}`}
-              >
-                <Flag size={20} fill={flagged[currentItem.id] ? 'currentColor' : 'none'} />
-                {flagged[currentItem.id] ? 'Unflag' : 'Flag Question'}
-              </button>
-            </div>
-
-            {currentIndex === items.length - 1 ? (
-              <button 
-                onClick={handleSubmit}
-                className="flex items-center gap-2 px-10 py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95"
-              >
-                Submit Exam
-                <Send size={20} />
-              </button>
-            ) : (
-              <button 
-                onClick={() => setCurrentIndex(prev => Math.min(items.length - 1, prev + 1))}
-                className="flex items-center gap-2 px-10 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                Next Question
-                <ChevronRight size={20} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar Navigation Grid */}
-        {showNav && (
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="w-full lg:w-[450px] space-y-6"
-          >
-            <GlassCard className="p-8 border-slate-200 sticky top-28 shadow-xl">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-slate-800 uppercase tracking-widest text-sm">Question Navigation</h3>
-                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">
-                  {Object.keys(answers).length} / {items.length} Answered
-                </span>
-              </div>
-
-              {/* Pagination Tabs */}
-              <div className="flex flex-wrap gap-2 mb-8">
-                {sections.map((section, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setActiveSection(idx)}
-                    className={`px-3 py-2 text-[11px] font-bold rounded-xl transition-all ${
-                      activeSection === idx 
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                    }`}
-                  >
-                    {section.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Legend */}
-              <div className="grid grid-cols-2 gap-4 mb-8">
-                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
-                  <div className="w-4 h-4 rounded-md bg-white border border-slate-200" />
-                  Unanswered
-                </div>
-                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
-                  <div className="w-4 h-4 rounded-md bg-indigo-600 shadow-sm" />
-                  Answered
-                </div>
-                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
-                  <div className="w-4 h-4 rounded-md bg-orange-500 shadow-sm" />
-                  Flagged
-                </div>
-                <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
-                  <div className="w-4 h-4 rounded-md border-2 border-indigo-600" />
-                  Current
-                </div>
-              </div>
-
-              <div className="h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                <div className="grid grid-cols-5 gap-3">
-                  {items.slice(sections[activeSection].start, sections[activeSection].end).map((item, localIdx) => {
-                    const idx = sections[activeSection].start + localIdx;
-                    const isAnswered = !!answers[item.id];
-                    const isFlagged = !!flagged[item.id];
-                    const isCurrent = currentIndex === idx;
-
-                    let bgColor = 'bg-white';
-                    let textColor = 'text-slate-400';
-                    let borderColor = 'border-slate-200';
-
-                    if (isAnswered) {
-                      bgColor = 'bg-indigo-600';
-                      textColor = 'text-white';
-                      borderColor = 'border-indigo-600';
-                    }
-
-                    if (isFlagged) {
-                      bgColor = isAnswered ? 'bg-indigo-600' : 'bg-orange-500';
-                      textColor = 'text-white';
-                      borderColor = isAnswered ? 'border-orange-400 border-2' : 'border-orange-500';
-                    }
-
-                    if (isCurrent) {
-                      borderColor = isFlagged ? 'border-orange-500 border-2' : 'border-indigo-600 border-2';
-                      if (!isAnswered && !isFlagged) {
-                        textColor = 'text-indigo-600';
-                      }
-                    }
-
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => setCurrentIndex(idx)}
-                        className={`aspect-square rounded-xl flex items-center justify-center font-bold text-xs transition-all border relative shadow-sm ${bgColor} ${textColor} ${borderColor} hover:scale-105 active:scale-95`}
-                      >
-                        {idx + 1}
-                        {isFlagged && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-white shadow-md" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
+          )}
       </div>
 
       {/* Review Modal */}
@@ -985,6 +1051,7 @@ const TakeExamPage: React.FC = () => {
         document.body
       )}
     </div>
+  </div>
   );
 };
 
