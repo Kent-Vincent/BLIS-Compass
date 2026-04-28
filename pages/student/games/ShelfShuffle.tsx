@@ -34,14 +34,7 @@ export default function ShelfShuffle() {
   }, [gameState, currentLevelIndex]);
 
   const checkOrder = () => {
-    const correctOrder = [...currentLevel.books].sort((a, b) => {
-      // Basic sorting logic for Dewey call numbers
-      const aVal = parseFloat(a.callNumber.line1);
-      const bVal = parseFloat(b.callNumber.line1);
-      if (aVal !== bVal) return aVal - bVal;
-      return a.callNumber.line2.localeCompare(b.callNumber.line2);
-    });
-
+    const correctOrder = currentLevel.books;
     const userOrderIds = books.map(b => b.id);
     const correctOrderIds = correctOrder.map(b => b.id);
 
@@ -85,6 +78,7 @@ export default function ShelfShuffle() {
           <h1 className="text-3xl font-bold text-slate-900 mb-4">Shelf Shuffle</h1>
           <p className="text-slate-600 mb-8">
             Arrange the books in the correct order based on their call numbers!
+            This game features both Dewey Decimal (DDC) and Library of Congress (LCC) systems.
           </p>
           <button
             onClick={() => setGameState('playing')}
@@ -136,7 +130,7 @@ export default function ShelfShuffle() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
+    <div className="max-w-7xl mx-auto py-8 px-4 h-full">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <button
@@ -153,20 +147,23 @@ export default function ShelfShuffle() {
           <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100">
             <span className="font-bold text-slate-700">Level: {currentLevelIndex + 1}/{SHELF_SHUFFLE_LEVELS.length}</span>
           </div>
+          <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm">
+            {currentLevel.type === 'Dewey' ? 'DDC System' : 'LCC System'}
+          </div>
         </div>
       </div>
 
-      <div className="bg-slate-100 rounded-3xl p-8 mb-8">
+      <div className="bg-slate-100 rounded-[2rem] p-4 md:p-8 mb-8 overflow-hidden">
         <div className="flex items-center gap-2 mb-6 text-slate-600">
           <Info size={18} />
-          <p className="text-sm font-medium">Drag the books to reorder them correctly.</p>
+          <p className="text-sm font-medium">Drag the books to reorder them correctly according to {currentLevel.type === 'Dewey' ? 'Dewey Decimal' : 'Library of Congress'} classification.</p>
         </div>
 
         <Reorder.Group 
           axis="x" 
           values={books} 
           onReorder={setBooks} 
-          className="flex flex-nowrap gap-2 md:gap-4 justify-center w-full"
+          className="flex flex-nowrap gap-1 md:gap-2 justify-center w-full min-h-[300px] items-end pb-4"
         >
           {books.map((book) => (
             <Reorder.Item
@@ -174,18 +171,38 @@ export default function ShelfShuffle() {
               value={book}
               whileDrag={{ 
                 scale: 1.05,
-                boxShadow: "0 15px 30px -10px rgba(59, 130, 246, 0.4)",
+                boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
                 zIndex: 50
               }}
-              className="w-[clamp(70px,9vw,120px)] h-44 md:h-56 bg-white rounded-xl shadow-md border-2 border-slate-200 cursor-grab active:cursor-grabbing p-2 md:p-4 flex flex-col justify-center items-center text-center group hover:border-blue-400 transition-colors"
+              className="flex-1 min-w-0 max-w-[120px] h-48 md:h-64 bg-white rounded-lg shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing p-1 md:p-3 flex flex-col justify-between items-center text-center group hover:border-blue-400 transition-colors relative"
             >
-              <div className="w-full h-1 bg-slate-200 rounded-full mb-4"></div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Call Number</p>
-                <p className="text-sm md:text-lg font-black text-slate-800 leading-tight">{book.callNumber.line1}</p>
-                <p className="text-xs md:text-sm font-bold text-slate-600">{book.callNumber.line2}</p>
+              <div className="w-full flex flex-col items-center">
+                <div className="w-full h-1 bg-slate-100 rounded-full mb-2 group-hover:bg-blue-50 transition-colors"></div>
+                {book.callNumber.prefix && (
+                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 mb-1">{book.callNumber.prefix}</p>
+                )}
+                <p className="text-[10px] md:text-sm font-black text-slate-800 leading-tight break-words w-full">
+                  {book.callNumber.line1}
+                </p>
               </div>
-              <div className="w-full h-1 bg-slate-200 rounded-full mt-4"></div>
+              
+              <div className="w-full py-2 border-y border-slate-50 my-1 group-hover:border-blue-50 transition-colors">
+                <p className="text-[10px] md:text-sm font-black text-blue-600 leading-tight break-words w-full">
+                  {book.callNumber.line2}
+                </p>
+              </div>
+
+              <div className="w-full flex flex-col items-center">
+                {book.callNumber.line3 && (
+                  <p className="text-[9px] md:text-xs font-bold text-slate-500 mb-2 leading-tight break-words w-full">
+                    {book.callNumber.line3}
+                  </p>
+                )}
+                <div className="w-full h-1 bg-slate-100 rounded-full group-hover:bg-blue-50 transition-colors"></div>
+              </div>
+
+              {/* Spine edge effect */}
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-50 group-hover:bg-blue-50/50 rounded-l-lg"></div>
             </Reorder.Item>
           ))}
         </Reorder.Group>
