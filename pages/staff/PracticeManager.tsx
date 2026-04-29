@@ -338,36 +338,36 @@ const PracticeManager: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col -mx-4 -mt-8 [@media(max-height:850px)]:-mt-4">
+    <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div id="practice-manager-header" className="flex justify-between items-center bg-white border-b border-slate-200 px-6 py-2 z-20 [@media(max-height:850px)]:py-1.5">
+      <div id="practice-manager-header" className="flex justify-between items-center bg-white border-b border-slate-200 px-8 py-4 z-20 [@media(max-height:850px)]:py-2 [@media(max-height:850px)]:px-6">
         <div id="header-title-container" className="flex items-center gap-4">
           <div className="hidden md:block">
-            <h1 id="page-title" className="text-lg font-bold text-slate-800 [@media(max-height:850px)]:text-base">Practice Sets Manager</h1>
-            <p id="page-subtitle" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest [@media(max-height:850px)]:text-[9px]">
+            <h1 id="page-title" className="text-xl font-bold text-slate-800 [@media(max-height:850px)]:text-lg">Practice Sets Manager</h1>
+            <p id="page-subtitle" className="text-xs font-bold text-slate-400 uppercase tracking-widest [@media(max-height:850px)]:text-[10px]">
               Subject: {subjects.find(s => s.id === selectedSubject)?.name || 'None'} • Part {selectedPart} • <span id="question-counter" className={questions.length >= 20 ? 'text-red-500' : 'text-blue-500'}>{questions.length}/20 Questions</span>
             </p>
           </div>
         </div>
         
-        <div id="header-actions" className="flex items-center gap-3">
-          <div id="filters-container" className="flex items-center gap-3 mr-4 [@media(max-height:850px)]:mr-2 [@media(max-height:850px)]:gap-2">
+        <div id="header-actions" className="flex items-center gap-4">
+          <div id="filters-container" className="flex items-center gap-4 mr-4 [@media(max-height:850px)]:mr-2 [@media(max-height:850px)]:gap-2">
              <div className="flex flex-col">
-               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-0.5">Subject</label>
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1">Subject</label>
                <select 
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="h-9 md:h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all min-w-[150px] md:min-w-[170px] [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs"
+                className="h-10 md:h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 cursor-pointer hover:bg-white transition-all min-w-[180px] md:min-w-[220px] [@media(max-height:850px)]:h-9 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-xl"
               >
                 {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
              </div>
              <div className="flex flex-col">
-               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-0.5">Part</label>
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1">Part</label>
                <select 
                 value={selectedPart}
                 onChange={(e) => setSelectedPart(parseInt(e.target.value))}
-                className="h-9 md:h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs"
+                className="h-10 md:h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 cursor-pointer hover:bg-white transition-all [@media(max-height:850px)]:h-9 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-xl"
               >
                 {[1, 2, 3, 4, 5].map(p => <option key={p} value={p}>Part {p}</option>)}
               </select>
@@ -375,27 +375,27 @@ const PracticeManager: React.FC = () => {
           </div>
 
           <div className="flex flex-col">
-            <label className="text-[9px] font-black text-transparent select-none uppercase tracking-widest ml-1 mb-0.5">Action</label>
+            <label className="text-[10px] font-black text-transparent select-none uppercase tracking-widest ml-1 mb-1">Action</label>
             <button 
               id="add-question-btn"
               onClick={addNewQuestion}
               disabled={questions.length >= 20}
-              className="h-9 md:h-10 px-4 md:px-5 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:px-3"
+              className="h-10 md:h-12 px-6 bg-white text-blue-600 border border-blue-100 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm [@media(max-height:850px)]:h-9 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:px-4 [@media(max-height:850px)]:rounded-xl"
             >
-              <Plus size={16} />
+              <Plus size={18} />
               <span className="hidden lg:inline">Add Question</span>
             </button>
           </div>
           
           <div className="flex flex-col">
-            <label className="text-[9px] font-black text-transparent select-none uppercase tracking-widest ml-1 mb-0.5">Action</label>
+            <label className="text-[10px] font-black text-transparent select-none uppercase tracking-widest ml-1 mb-1">Action</label>
             <button 
               id="save-changes-btn"
               onClick={handleSave}
               disabled={saving || !editingData}
-              className="h-9 md:h-10 px-5 md:px-6 bg-blue-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 text-sm [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:px-4"
+              className="h-10 md:h-12 px-6 md:px-8 bg-blue-600 text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 disabled:opacity-50 text-sm md:text-base [@media(max-height:850px)]:h-9 [@media(max-height:850px)]:text-sm [@media(max-height:850px)]:px-6 [@media(max-height:850px)]:rounded-xl"
             >
-              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+              {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
               Save Changes
             </button>
           </div>
@@ -426,12 +426,12 @@ const PracticeManager: React.FC = () => {
           {showNavigator && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 180, opacity: 1 }}
+              animate={{ width: 220, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               className="bg-white border-r border-slate-200 flex flex-col overflow-hidden shrink-0"
             >
-              <div className="p-1.5 border-b border-slate-100 flex items-center justify-between [@media(max-height:850px)]:p-1">
-                <h3 className="font-bold text-slate-800 text-[9px] uppercase tracking-widest px-1">Question List</h3>
+              <div className="p-3 border-b border-slate-100 flex items-center justify-between [@media(max-height:850px)]:p-1.5">
+                <h3 className="font-bold text-slate-800 text-[12px] uppercase tracking-widest px-1">Question List</h3>
                 <button 
                   onClick={() => setShowNavigator(false)}
                   className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
@@ -441,17 +441,17 @@ const PracticeManager: React.FC = () => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-1.5 custom-scrollbar [@media(max-height:850px)]:p-1">
+              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar [@media(max-height:850px)]:p-2">
                 {loading ? (
-                  <div className="flex justify-center py-6">
-                    <Loader2 className="animate-spin text-blue-600" size={20} />
+                  <div className="flex justify-center py-10">
+                    <Loader2 className="animate-spin text-blue-600" size={24} />
                   </div>
                 ) : questions.length === 0 ? (
-                  <div className="text-center py-6">
-                    <p className="text-[10px] font-bold text-slate-400">No questions yet</p>
+                  <div className="text-center py-10">
+                    <p className="text-xs font-bold text-slate-400">No questions yet</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-3 gap-3">
                     {questions.map((q, idx) => {
                       const isSelected = selectedIndex === idx;
                       const isNew = !q.id;
@@ -460,16 +460,16 @@ const PracticeManager: React.FC = () => {
                         <button
                           key={q.id || `new-${idx}`}
                           onClick={() => handleSelectQuestion(idx)}
-                          className={`aspect-square rounded-xl transition-all flex items-center justify-center border font-bold text-xs relative ${
+                          className={`aspect-square rounded-2xl transition-all flex items-center justify-center border font-bold text-base relative ${
                             isSelected ? 'ring-2 ring-blue-500 ring-offset-2 z-10 box-content' : ''
                           } ${
                             isNew 
-                              ? 'bg-blue-50 text-blue-600 border-blue-200 border-dashed'
-                              : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:bg-slate-50 shadow-sm'
+                              ? isSelected ? 'bg-blue-50 border-blue-500 text-blue-600 shadow-md' : 'bg-blue-50 border-blue-200 text-blue-400'
+                              : isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:bg-slate-50 shadow-sm'
                           }`}
                         >
                           {idx + 1}
-                          {isNew && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-white" />}
+                          {isNew && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />}
                         </button>
                       );
                     })}
@@ -481,15 +481,15 @@ const PracticeManager: React.FC = () => {
         </AnimatePresence>
 
         {/* Main Editor Area */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 md:px-8 md:py-4 custom-scrollbar [@media(max-height:850px)]:p-2 flex justify-center">
-          <div className={`w-full transition-all duration-300 ${showNavigator ? 'max-w-[1400px]' : 'max-w-[1600px]'}`}>
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-6 md:p-12 custom-scrollbar [@media(max-height:850px)]:p-4 lg:flex lg:flex-col lg:items-center">
+          <div className="w-full max-w-[1280px] transition-all duration-300">
             {!showNavigator && (
               <button 
                 onClick={() => setShowNavigator(true)}
-                className="flex items-center gap-2 text-blue-600 font-bold text-xs hover:bg-blue-50 px-3 py-1.5 rounded-xl transition-all mb-4 [@media(max-height:850px)]:mb-2"
+                className="flex items-center gap-2 text-blue-600 font-bold text-sm hover:bg-blue-50 px-4 py-2 rounded-2xl transition-all mb-6 bg-white border border-blue-100 shadow-sm"
               >
-                <ChevronRight size={16} />
-                Show List
+                <ChevronRight size={18} />
+                Show Question List
               </button>
             )}
 
@@ -500,15 +500,15 @@ const PracticeManager: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-4 [@media(max-height:850px)]:space-y-2 pb-8 [@media(max-height:850px)]:pb-2"
               >
-                <GlassCard className="p-4 md:p-6 border-slate-200 shadow-xl shadow-slate-200/50 [@media(max-height:850px)]:p-3">
-                  <div className="flex justify-between items-start mb-4 [@media(max-height:850px)]:mb-2">
-                    <div className="flex items-center gap-4 [@media(max-height:850px)]:gap-2">
-                      <div className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-bold text-lg md:text-xl shadow-lg [@media(max-height:850px)]:w-7 [@media(max-height:850px)]:h-7 [@media(max-height:850px)]:text-sm">
+                <GlassCard className="p-6 md:p-10 border-slate-200 shadow-xl shadow-slate-200/50 [@media(max-height:850px)]:p-6">
+                  <div className="flex justify-between items-start mb-8 [@media(max-height:850px)]:mb-4">
+                    <div className="flex items-center gap-6 [@media(max-height:850px)]:gap-4">
+                      <div className="w-12 h-12 md:w-16 md:h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-bold text-xl md:text-3xl shadow-lg [@media(max-height:850px)]:w-10 [@media(max-height:850px)]:h-10 [@media(max-height:850px)]:text-lg">
                         {(selectedIndex || 0) + 1}
                       </div>
                       <div>
-                        <h2 className="text-base md:text-lg font-bold text-slate-800 [@media(max-height:850px)]:text-sm">Question Editor</h2>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest [@media(max-height:850px)]:text-[8px]">
+                        <h2 className="text-xl md:text-2xl font-bold text-slate-800 [@media(max-height:850px)]:text-lg">Question Editor</h2>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest [@media(max-height:850px)]:text-[10px]">
                           {editingData.id ? `Question #${(selectedIndex || 0) + 1}` : 'Draft Question'}
                         </p>
                       </div>
@@ -525,29 +525,29 @@ const PracticeManager: React.FC = () => {
 
                   <div className="space-y-4 [@media(max-height:850px)]:space-y-1.5">
                     <div className="space-y-1.5 [@media(max-height:850px)]:space-y-0.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[8px]">Question Content</label>
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[10px]">Question Content</label>
                       <textarea
                         value={editingData.question || ''}
                         onChange={(e) => handleUpdateEditingData({ question: e.target.value })}
                         rows={3}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm md:text-base text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none leading-relaxed [@media(max-height:850px)]:py-1.5 [@media(max-height:850px)]:px-3 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-lg [@media(max-height:850px)]:h-[40px] [@media(max-height:850px)]:min-h-0"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-3xl px-6 py-5 text-sm md:text-xl text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none leading-relaxed [@media(max-height:850px)]:py-2 [@media(max-height:850px)]:px-4 [@media(max-height:850px)]:text-sm [@media(max-height:850px)]:rounded-xl [@media(max-height:850px)]:h-[80px]"
                         placeholder="Type your question here..."
                       />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 [@media(max-height:850px)]:gap-1.5">
                       {(['a', 'b', 'c', 'd'] as const).map((key) => (
-                        <div key={key} className="space-y-1.5 relative group [@media(max-height:850px)]:space-y-0">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[8px]">Choice {key.toUpperCase()}</label>
+                        <div key={key} className="space-y-2 relative group [@media(max-height:850px)]:space-y-1">
+                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[10px]">Choice {key.toUpperCase()}</label>
                           <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-400 group-focus-within:bg-blue-100 group-focus-within:text-blue-600 transition-colors uppercase [@media(max-height:850px)]:w-5 [@media(max-height:850px)]:h-5 [@media(max-height:850px)]:left-2 [@media(max-height:850px)]:text-[10px]">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-sm text-slate-400 group-focus-within:bg-blue-100 group-focus-within:text-blue-600 transition-colors uppercase [@media(max-height:850px)]:w-7 [@media(max-height:850px)]:h-7 [@media(max-height:850px)]:left-3 [@media(max-height:850px)]:text-xs">
                               {key}
                             </span>
                             <input
                               type="text"
                               value={editingData[`choice_${key}`] || ''}
                               onChange={(e) => handleUpdateEditingData({ [`choice_${key}`]: e.target.value })}
-                              className="h-12 w-full bg-slate-50 border border-slate-100 rounded-2xl pl-16 pr-32 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:pl-9 [@media(max-height:850px)]:pr-20 [@media(max-height:850px)]:text-[11px] [@media(max-height:850px)]:rounded-lg"
+                              className="h-14 md:h-16 w-full bg-slate-50 border border-slate-100 rounded-2xl pl-16 pr-36 text-sm md:text-base text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all [@media(max-height:850px)]:h-10 [@media(max-height:850px)]:pl-14 [@media(max-height:850px)]:pr-32 [@media(max-height:850px)]:text-sm [@media(max-height:850px)]:rounded-xl"
                               placeholder={`Option ${key.toUpperCase()}`}
                             />
                             <button
@@ -567,24 +567,24 @@ const PracticeManager: React.FC = () => {
                       ))}
                     </div>
 
-                    <div className="space-y-2 [@media(max-height:850px)]:space-y-0.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[8px]">Explanation (Optional)</label>
+                    <div className="space-y-3 [@media(max-height:850px)]:space-y-1.5">
+                      <label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[10px]">Explanation (Optional)</label>
                       <textarea
                         value={editingData.explanation || ''}
                         onChange={(e) => handleUpdateEditingData({ explanation: e.target.value })}
                         rows={3}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm md:text-base text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none [@media(max-height:850px)]:py-1.5 [@media(max-height:850px)]:px-3 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-lg [@media(max-height:850px)]:h-[36px] [@media(max-height:850px)]:min-h-0"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-sm md:text-lg text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none [@media(max-height:850px)]:py-2 [@media(max-height:850px)]:px-4 [@media(max-height:850px)]:text-sm [@media(max-height:850px)]:rounded-xl [@media(max-height:850px)]:h-[60px]"
                         placeholder="Explain why the answer is correct..."
                       />
                     </div>
 
-                    <div className="flex justify-between items-center pt-4 border-t border-slate-100 [@media(max-height:850px)]:pt-1.5 [@media(max-height:850px)]:mt-0">
+                    <div className="flex justify-between items-center pt-8 border-t border-slate-100 [@media(max-height:850px)]:pt-3 [@media(max-height:850px)]:mt-0">
                       <button
                         onClick={() => handleSelectQuestion(selectedIndex! - 1)}
                         disabled={selectedIndex === 0}
-                        className="flex items-center gap-2 px-3 md:px-5 py-1.5 md:py-3 rounded-xl font-bold text-xs md:text-sm text-slate-500 hover:text-slate-800 hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all [@media(max-height:850px)]:gap-1 [@media(max-height:850px)]:py-1.5"
+                        className="flex items-center gap-3 px-6 py-4 rounded-2xl font-bold text-sm md:text-base text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-transparent hover:border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all [@media(max-height:850px)]:px-4 [@media(max-height:850px)]:py-1.5 [@media(max-height:850px)]:rounded-xl [@media(max-height:850px)]:text-xs"
                       >
-                        <ChevronLeft size={16} />
+                        <ChevronLeft size={20} className="[@media(max-height:850px)]:w-4" />
                         Previous
                       </button>
 
@@ -600,17 +600,17 @@ const PracticeManager: React.FC = () => {
                               addNewQuestion();
                             }
                           }}
-                          className="flex items-center gap-2 h-10 md:h-14 px-4 md:px-8 bg-slate-900 text-white rounded-2xl font-bold text-xs md:text-base hover:bg-slate-800 shadow-xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-[0.98] [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:px-4 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-xl"
+                          className="flex items-center gap-2 h-12 md:h-16 px-6 md:px-10 bg-slate-900 text-white rounded-2xl font-bold text-sm md:text-lg hover:bg-slate-800 shadow-xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-[0.98] [@media(max-height:850px)]:h-10 [@media(max-height:850px)]:px-6 [@media(max-height:850px)]:text-sm [@media(max-height:850px)]:rounded-xl"
                         >
                           {selectedIndex === questions.length - 1 ? (
                             <>
-                              <Plus size={16} />
+                              <Plus size={20} className="[@media(max-height:850px)]:w-4" />
                               Add Next
                             </>
                           ) : (
                             <>
                               Next Question
-                              <ChevronRight size={20} className="text-slate-400" />
+                              <ChevronRight size={24} className="text-slate-400 [@media(max-height:850px)]:w-5" />
                             </>
                           )}
                         </button>

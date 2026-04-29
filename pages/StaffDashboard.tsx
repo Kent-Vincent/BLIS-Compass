@@ -10,7 +10,7 @@ import AnalyticsPage from './staff/AnalyticsPage';
 import QuestionBankPage from './staff/QuestionBankPage';
 import { motion } from 'motion/react';
 import { Users, BookOpen, GraduationCap, TrendingUp, Database } from 'lucide-react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Overview: React.FC = () => {
@@ -114,6 +114,7 @@ const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
 
 const StaffDashboard: React.FC = () => {
   const { profile, loading } = useAuth();
+  const location = useLocation();
 
   if (loading || !profile) {
     return (
@@ -131,7 +132,7 @@ const StaffDashboard: React.FC = () => {
       <StaffSidebar />
       <div className="flex-1 flex flex-col">
         <StaffHeader />
-        <main className="p-8">
+        <main className={location.pathname.includes('/staff/practice') ? "flex-1 overflow-hidden" : "p-8"}>
           <Routes>
             <Route path="overview" element={<Overview />} />
             <Route path="accounts" element={<AccountManager />} />
