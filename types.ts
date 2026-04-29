@@ -12,6 +12,8 @@ export interface User {
   level: number;
   exp: number;
   streak: number;
+  exam_layout?: 'standard' | 'form';
+  questions_per_page?: number;
 }
 
 export interface GameCard {

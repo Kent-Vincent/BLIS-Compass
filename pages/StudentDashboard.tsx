@@ -10,6 +10,7 @@ import TakeExamPage from './student/TakeExamPage';
 import StudentAnalytics from './student/StudentAnalytics';
 import PracticeSetsTab from './student/PracticeSetsTab';
 import PracticePlayer from './student/PracticePlayer';
+import SettingsPage from './student/SettingsPage';
 import ReferenceCrushPro from './student/games/ReferenceCrushPro';
 import SourceDetectives from './student/games/SourceDetectives';
 import Classify from './student/games/Classify';
@@ -302,6 +303,7 @@ const StudentDashboard: React.FC = () => {
     if (path.includes('/student/mock-exams')) return 'mock-exams';
     if (path.includes('/student/practice')) return 'practice';
     if (path.includes('/student/analytics')) return 'analytics';
+    if (path.includes('/student/settings')) return 'settings';
     return 'overview';
   };
 
@@ -369,7 +371,10 @@ const StudentDashboard: React.FC = () => {
                   <BarChart3 size={20} />
                   <span>Analytics</span>
                </button>
-               <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-50">
+               <button 
+                 onClick={() => navigate('/student/settings')}
+                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'settings' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-500 hover:bg-slate-50'}`}
+               >
                   <Settings size={20} />
                   <span>Settings</span>
                </button>
@@ -432,6 +437,7 @@ const StudentDashboard: React.FC = () => {
           <Route path="practice" element={<PracticeSetsTab />} />
           <Route path="practice/:subjectId/part/:partNo" element={<PracticePlayer />} />
           <Route path="analytics" element={<StudentAnalytics />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="overview" replace />} />
         </Routes>
       </main>

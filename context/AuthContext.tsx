@@ -77,7 +77,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           role: data.role as UserRole,
           level: data.level || 1,
           exp: data.exp || 0,
-          streak: data.streak || 0
+          streak: data.streak || 0,
+          exam_layout: data.exam_layout || 'standard',
+          questions_per_page: data.questions_per_page || 10
         };
       } else {
         // 2. Profile missing - attempt auto-repair using upsert
@@ -92,7 +94,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             role: UserRole.STUDENT,
             level: 1,
             exp: 0,
-            streak: 0
+            streak: 0,
+            exam_layout: 'standard',
+            questions_per_page: 10
           }, { onConflict: 'id' })
           .select('*')
           .maybeSingle();
@@ -107,7 +111,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             role: newProfile.role as UserRole,
             level: newProfile.level || 1,
             exp: newProfile.exp || 0,
-            streak: newProfile.streak || 0
+            streak: newProfile.streak || 0,
+            exam_layout: newProfile.exam_layout || 'standard',
+            questions_per_page: newProfile.questions_per_page || 10
           };
         }
       }
@@ -154,7 +160,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             role: UserRole.STUDENT,
             level: 1,
             exp: 0,
-            streak: 0
+            streak: 0,
+            exam_layout: 'standard',
+            questions_per_page: 10
           }
         ]);
 
