@@ -805,48 +805,50 @@ const TakeExamPage: React.FC = () => {
                   >
                     <GlassCard className="p-4 md:p-6 lg:p-10 border-white/60 h-full flex flex-col relative overflow-hidden group/card shadow-[0_20px_50px_rgba(0,0,0,0.1)] [@media(max-height:900px)]:p-4 [@media(max-height:900px)]:lg:p-6">
                       <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-0 flex flex-col">
-                        <div className="mb-6 md:mb-10 lg:mb-12 shrink-0 [@media(max-height:900px)]:mb-3">
-                          <div className="flex items-center gap-2 mb-3 md:mb-5 [@media(max-height:900px)]:mb-1.5">
-                            <span className="text-[9px] md:text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 md:px-3 py-0.5 md:py-1.5 rounded-full uppercase tracking-wider">
-                              {subjects.find(s => s.id === currentItem.subject_id)?.name || 'General'}
-                            </span>
-                            <span className="text-[9px] md:text-[10px] font-bold text-slate-400 bg-slate-50 px-2 md:px-3 py-0.5 md:py-1.5 rounded-full uppercase tracking-wider border border-slate-100">
-                              Item #{currentIndex + 1}
-                            </span>
-                          </div>
-                          <h2 className="text-sm md:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 leading-relaxed md:leading-snug [@media(max-height:900px)]:text-base [@media(max-height:900px)]:xl:text-lg">
-                            {currentItem.question}
-                          </h2>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 md:gap-4 py-2 [@media(max-height:900px)]:gap-2 [@media(max-height:900px)]:py-1">
-                          {[
-                            { id: 'a', text: currentItem.choice_a, label: 'A' },
-                            { id: 'b', text: currentItem.choice_b, label: 'B' },
-                            { id: 'c', text: currentItem.choice_c, label: 'C' },
-                            { id: 'd', text: currentItem.choice_d, label: 'D' },
-                          ].map((choice) => (
-                            <button
-                              key={choice.id}
-                              onClick={() => handleSelectAnswer(currentItem.id, choice.id)}
-                              className={`flex items-start md:items-center gap-3 md:gap-5 p-4 md:p-5 lg:p-6 rounded-xl md:rounded-2xl border-2 text-left transition-all group shrink-0 ${
-                                answers[currentItem.id] === choice.id 
-                                  ? 'bg-indigo-50/50 border-indigo-600 ring-1 ring-indigo-600 shadow-md' 
-                                  : 'bg-white border-slate-100/80 hover:border-indigo-200 hover:bg-slate-50/50 hover:shadow-lg'
-                              } [@media(max-height:900px)]:p-2.5 [@media(max-height:900px)]:md:p-3 [@media(max-height:900px)]:lg:p-3.5`}
-                            >
-                              <div className={`w-7 h-7 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center font-bold text-xs md:text-base transition-all shrink-0 mt-0.5 md:mt-0 ${
-                                answers[currentItem.id] === choice.id 
-                                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
-                                  : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'
-                              } [@media(max-height:900px)]:w-7 [@media(max-height:900px)]:h-7 [@media(max-height:900px)]:text-xs`}>
-                                {choice.label}
-                              </div>
-                              <span className={`text-xs md:text-sm lg:text-base font-medium break-words py-0.5 ${answers[currentItem.id] === choice.id ? 'text-indigo-900' : 'text-slate-700'} [@media(max-height:900px)]:text-[11px] [@media(max-height:900px)]:md:text-xs [@media(max-height:900px)]:lg:text-sm`}>
-                                {choice.text}
+                        <div className="my-auto w-full">
+                          <div className="mb-6 md:mb-10 lg:mb-12 shrink-0 [@media(max-height:900px)]:mb-3">
+                            <div className="flex items-center gap-2 mb-3 md:mb-5 [@media(max-height:900px)]:mb-1.5">
+                              <span className="text-[9px] md:text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 md:px-3 py-0.5 md:py-1.5 rounded-full uppercase tracking-wider">
+                                {subjects.find(s => s.id === currentItem.subject_id)?.name || 'General'}
                               </span>
-                            </button>
-                          ))}
+                              <span className="text-[9px] md:text-[10px] font-bold text-slate-400 bg-slate-50 px-2 md:px-3 py-0.5 md:py-1.5 rounded-full uppercase tracking-wider border border-slate-100">
+                                Item #{currentIndex + 1}
+                              </span>
+                            </div>
+                            <h2 className="text-sm md:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 leading-relaxed md:leading-snug [@media(max-height:900px)]:text-base [@media(max-height:900px)]:xl:text-lg">
+                              {currentItem.question}
+                            </h2>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 md:gap-4 py-2 [@media(max-height:900px)]:gap-2 [@media(max-height:900px)]:py-1">
+                            {[
+                              { id: 'a', text: currentItem.choice_a, label: 'A' },
+                              { id: 'b', text: currentItem.choice_b, label: 'B' },
+                              { id: 'c', text: currentItem.choice_c, label: 'C' },
+                              { id: 'd', text: currentItem.choice_d, label: 'D' },
+                            ].map((choice) => (
+                              <button
+                                key={choice.id}
+                                onClick={() => handleSelectAnswer(currentItem.id, choice.id)}
+                                className={`flex items-start md:items-center gap-3 md:gap-5 p-4 md:p-5 lg:p-6 rounded-xl md:rounded-2xl border-2 text-left transition-all group shrink-0 ${
+                                  answers[currentItem.id] === choice.id 
+                                    ? 'bg-indigo-50/50 border-indigo-600 ring-1 ring-indigo-600 shadow-md' 
+                                    : 'bg-white border-slate-100/80 hover:border-indigo-200 hover:bg-slate-50/50 hover:shadow-lg'
+                                } [@media(max-height:900px)]:p-2.5 [@media(max-height:900px)]:md:p-3 [@media(max-height:900px)]:lg:p-3.5`}
+                              >
+                                <div className={`w-7 h-7 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center font-bold text-xs md:text-base transition-all shrink-0 mt-0.5 md:mt-0 ${
+                                  answers[currentItem.id] === choice.id 
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                    : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'
+                                } [@media(max-height:900px)]:w-7 [@media(max-height:900px)]:h-7 [@media(max-height:900px)]:text-xs`}>
+                                  {choice.label}
+                                </div>
+                                <span className={`text-xs md:text-sm lg:text-base font-medium break-words py-0.5 ${answers[currentItem.id] === choice.id ? 'text-indigo-900' : 'text-slate-700'} [@media(max-height:900px)]:text-[11px] [@media(max-height:900px)]:md:text-xs [@media(max-height:900px)]:lg:text-sm`}>
+                                  {choice.text}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </GlassCard>

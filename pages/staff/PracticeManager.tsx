@@ -338,26 +338,26 @@ const PracticeManager: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col -mx-4 -mt-8">
+    <div className="h-[calc(100vh-120px)] flex flex-col -mx-4 -mt-8 [@media(max-height:850px)]:-mt-4">
       {/* Header */}
-      <div id="practice-manager-header" className="flex justify-between items-center bg-white border-b border-slate-200 px-6 py-3 z-20">
+      <div id="practice-manager-header" className="flex justify-between items-center bg-white border-b border-slate-200 px-6 py-2 z-20 [@media(max-height:850px)]:py-1.5">
         <div id="header-title-container" className="flex items-center gap-4">
           <div className="hidden md:block">
-            <h1 id="page-title" className="text-lg font-bold text-slate-800">Practice Sets Manager</h1>
-            <p id="page-subtitle" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            <h1 id="page-title" className="text-lg font-bold text-slate-800 [@media(max-height:850px)]:text-base">Practice Sets Manager</h1>
+            <p id="page-subtitle" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest [@media(max-height:850px)]:text-[9px]">
               Subject: {subjects.find(s => s.id === selectedSubject)?.name || 'None'} • Part {selectedPart} • <span id="question-counter" className={questions.length >= 20 ? 'text-red-500' : 'text-blue-500'}>{questions.length}/20 Questions</span>
             </p>
           </div>
         </div>
         
         <div id="header-actions" className="flex items-center gap-3">
-          <div id="filters-container" className="flex items-center gap-3 mr-4">
+          <div id="filters-container" className="flex items-center gap-3 mr-4 [@media(max-height:850px)]:mr-2 [@media(max-height:850px)]:gap-2">
              <div className="flex flex-col">
                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-0.5">Subject</label>
                <select 
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all min-w-[170px]"
+                className="h-9 md:h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all min-w-[150px] md:min-w-[170px] [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs"
               >
                 {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
@@ -367,7 +367,7 @@ const PracticeManager: React.FC = () => {
                <select 
                 value={selectedPart}
                 onChange={(e) => setSelectedPart(parseInt(e.target.value))}
-                className="h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all"
+                className="h-9 md:h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-100 transition-all [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs"
               >
                 {[1, 2, 3, 4, 5].map(p => <option key={p} value={p}>Part {p}</option>)}
               </select>
@@ -380,7 +380,7 @@ const PracticeManager: React.FC = () => {
               id="add-question-btn"
               onClick={addNewQuestion}
               disabled={questions.length >= 20}
-              className="h-10 px-5 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className="h-9 md:h-10 px-4 md:px-5 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:px-3"
             >
               <Plus size={16} />
               <span className="hidden lg:inline">Add Question</span>
@@ -393,7 +393,7 @@ const PracticeManager: React.FC = () => {
               id="save-changes-btn"
               onClick={handleSave}
               disabled={saving || !editingData}
-              className="h-10 px-6 bg-blue-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 text-sm"
+              className="h-9 md:h-10 px-5 md:px-6 bg-blue-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 text-sm [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:px-4"
             >
               {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
               Save Changes
@@ -426,31 +426,32 @@ const PracticeManager: React.FC = () => {
           {showNavigator && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
+              animate={{ width: 180, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              className="bg-white border-r border-slate-200 flex flex-col overflow-hidden"
+              className="bg-white border-r border-slate-200 flex flex-col overflow-hidden shrink-0"
             >
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-bold text-slate-800 text-xs uppercase tracking-widest">Question List</h3>
+              <div className="p-1.5 border-b border-slate-100 flex items-center justify-between [@media(max-height:850px)]:p-1">
+                <h3 className="font-bold text-slate-800 text-[9px] uppercase tracking-widest px-1">Question List</h3>
                 <button 
                   onClick={() => setShowNavigator(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg lg:hidden"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                  title="Hide List"
                 >
-                  <Plus size={16} className="rotate-45" />
+                  <ChevronLeft size={16} />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-1.5 custom-scrollbar [@media(max-height:850px)]:p-1">
                 {loading ? (
-                  <div className="flex justify-center py-10">
-                    <Loader2 className="animate-spin text-blue-600" size={24} />
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="animate-spin text-blue-600" size={20} />
                   </div>
                 ) : questions.length === 0 ? (
-                  <div className="text-center py-10">
-                    <p className="text-xs font-bold text-slate-400">No questions yet</p>
+                  <div className="text-center py-6">
+                    <p className="text-[10px] font-bold text-slate-400">No questions yet</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-4 gap-1.5">
                     {questions.map((q, idx) => {
                       const isSelected = selectedIndex === idx;
                       const isNew = !q.id;
@@ -459,7 +460,7 @@ const PracticeManager: React.FC = () => {
                         <button
                           key={q.id || `new-${idx}`}
                           onClick={() => handleSelectQuestion(idx)}
-                          className={`aspect-square rounded-2xl transition-all flex items-center justify-center border font-bold text-sm relative ${
+                          className={`aspect-square rounded-xl transition-all flex items-center justify-center border font-bold text-xs relative ${
                             isSelected ? 'ring-2 ring-blue-500 ring-offset-2 z-10 box-content' : ''
                           } ${
                             isNew 
@@ -468,7 +469,7 @@ const PracticeManager: React.FC = () => {
                           }`}
                         >
                           {idx + 1}
-                          {isNew && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white" />}
+                          {isNew && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-white" />}
                         </button>
                       );
                     })}
@@ -480,15 +481,15 @@ const PracticeManager: React.FC = () => {
         </AnimatePresence>
 
         {/* Main Editor Area */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6 custom-scrollbar">
-          <div className="max-w-4xl mx-auto">
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 md:px-8 md:py-4 custom-scrollbar [@media(max-height:850px)]:p-2 flex justify-center">
+          <div className={`w-full transition-all duration-300 ${showNavigator ? 'max-w-[1400px]' : 'max-w-[1600px]'}`}>
             {!showNavigator && (
               <button 
                 onClick={() => setShowNavigator(true)}
-                className="flex items-center gap-2 text-blue-600 font-bold text-sm hover:bg-blue-50 px-3 py-1.5 rounded-xl transition-all mb-4"
+                className="flex items-center gap-2 text-blue-600 font-bold text-xs hover:bg-blue-50 px-3 py-1.5 rounded-xl transition-all mb-4 [@media(max-height:850px)]:mb-2"
               >
-                <FileText size={16} />
-                Show Navigator
+                <ChevronRight size={16} />
+                Show List
               </button>
             )}
 
@@ -497,97 +498,98 @@ const PracticeManager: React.FC = () => {
                 key={selectedIndex}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-4"
+                className="space-y-4 [@media(max-height:850px)]:space-y-2 pb-8 [@media(max-height:850px)]:pb-2"
               >
-                <GlassCard className="p-5 md:p-6 border-slate-200 shadow-xl shadow-slate-200/50">
-                  <div className="flex justify-between items-start mb-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-lg">
+                <GlassCard className="p-4 md:p-6 border-slate-200 shadow-xl shadow-slate-200/50 [@media(max-height:850px)]:p-3">
+                  <div className="flex justify-between items-start mb-4 [@media(max-height:850px)]:mb-2">
+                    <div className="flex items-center gap-4 [@media(max-height:850px)]:gap-2">
+                      <div className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-bold text-lg md:text-xl shadow-lg [@media(max-height:850px)]:w-7 [@media(max-height:850px)]:h-7 [@media(max-height:850px)]:text-sm">
                         {(selectedIndex || 0) + 1}
                       </div>
                       <div>
-                        <h2 className="text-md font-bold text-slate-800">Question Editor</h2>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <h2 className="text-base md:text-lg font-bold text-slate-800 [@media(max-height:850px)]:text-sm">Question Editor</h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest [@media(max-height:850px)]:text-[8px]">
                           {editingData.id ? `Question #${(selectedIndex || 0) + 1}` : 'Draft Question'}
                         </p>
                       </div>
                     </div>
                     <button 
                       onClick={() => handleDelete(editingData.id)}
-                      className="h-9 px-3 text-red-100 bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-lg shadow-red-100 flex items-center gap-2 text-[10px] font-bold"
+                      className="h-9 px-4 text-red-100 bg-red-500 hover:bg-red-600 rounded-xl transition-all shadow-lg shadow-red-100 flex items-center gap-2 text-xs font-bold [@media(max-height:850px)]:h-6 [@media(max-height:850px)]:px-3"
                       title="Remove Question"
                     >
-                      <Trash2 size={14} />
-                      Remove Question
+                      <Trash2 size={16} className="[@media(max-height:850px)]:w-3.5" />
+                      <span className="hidden sm:inline">Delete Question</span>
                     </button>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Question Text</label>
+                  <div className="space-y-4 [@media(max-height:850px)]:space-y-1.5">
+                    <div className="space-y-1.5 [@media(max-height:850px)]:space-y-0.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[8px]">Question Content</label>
                       <textarea
                         value={editingData.question || ''}
                         onChange={(e) => handleUpdateEditingData({ question: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none leading-relaxed"
+                        rows={3}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm md:text-base text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none leading-relaxed [@media(max-height:850px)]:py-1.5 [@media(max-height:850px)]:px-3 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-lg [@media(max-height:850px)]:h-[40px] [@media(max-height:850px)]:min-h-0"
                         placeholder="Type your question here..."
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 [@media(max-height:850px)]:gap-1.5">
                       {(['a', 'b', 'c', 'd'] as const).map((key) => (
-                        <div key={key} className="space-y-1 relative group">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Choice {key}</label>
+                        <div key={key} className="space-y-1.5 relative group [@media(max-height:850px)]:space-y-0">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[8px]">Choice {key.toUpperCase()}</label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center font-bold text-[9px] text-slate-400 group-focus-within:bg-blue-100 group-focus-within:text-blue-600 transition-colors uppercase">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-400 group-focus-within:bg-blue-100 group-focus-within:text-blue-600 transition-colors uppercase [@media(max-height:850px)]:w-5 [@media(max-height:850px)]:h-5 [@media(max-height:850px)]:left-2 [@media(max-height:850px)]:text-[10px]">
                               {key}
                             </span>
                             <input
                               type="text"
                               value={editingData[`choice_${key}`] || ''}
                               onChange={(e) => handleUpdateEditingData({ [`choice_${key}`]: e.target.value })}
-                              className="h-10 w-full bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-24 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                              className="h-12 w-full bg-slate-50 border border-slate-100 rounded-2xl pl-16 pr-32 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:pl-9 [@media(max-height:850px)]:pr-20 [@media(max-height:850px)]:text-[11px] [@media(max-height:850px)]:rounded-lg"
                               placeholder={`Option ${key.toUpperCase()}`}
                             />
                             <button
+                              type="button"
                               onClick={() => handleUpdateEditingData({ correct_answer: key })}
-                              className={`absolute right-2 top-1/2 -translate-y-1/2 h-6 px-2.5 rounded-lg text-[8px] font-bold transition-all flex items-center gap-1.5 ${
+                              className={`absolute right-3 top-1/2 -translate-y-1/2 h-8 md:h-10 px-4 rounded-xl text-[10px] md:text-xs font-bold transition-all flex items-center gap-2 [@media(max-height:850px)]:h-6 [@media(max-height:850px)]:px-1.5 [@media(max-height:850px)]:right-1 [@media(max-height:850px)]:text-[9px] ${
                                 editingData.correct_answer === key
                                   ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
                                   : 'bg-white text-slate-400 border border-slate-200 hover:border-emerald-300 hover:text-emerald-500 shadow-sm'
                               }`}
                             >
-                              {editingData.correct_answer === key ? <CheckCircle2 size={10} /> : <div className="w-2 h-2 rounded-full border-2 border-slate-200" />}
-                              Correct
+                              {editingData.correct_answer === key && <CheckCircle2 size={14} className="[@media(max-height:850px)]:w-2.5" />}
+                              {editingData.correct_answer === key ? 'Correct' : 'Mark'}
                             </button>
                           </div>
                         </div>
                       ))}
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Explanation (Optional)</label>
+                    <div className="space-y-2 [@media(max-height:850px)]:space-y-0.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 [@media(max-height:850px)]:text-[8px]">Explanation (Optional)</label>
                       <textarea
                         value={editingData.explanation || ''}
                         onChange={(e) => handleUpdateEditingData({ explanation: e.target.value })}
-                        rows={1}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none"
+                        rows={3}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-sm md:text-base text-slate-700 font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none [@media(max-height:850px)]:py-1.5 [@media(max-height:850px)]:px-3 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-lg [@media(max-height:850px)]:h-[36px] [@media(max-height:850px)]:min-h-0"
                         placeholder="Explain why the answer is correct..."
                       />
                     </div>
 
-                    <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                    <div className="flex justify-between items-center pt-4 border-t border-slate-100 [@media(max-height:850px)]:pt-1.5 [@media(max-height:850px)]:mt-0">
                       <button
                         onClick={() => handleSelectQuestion(selectedIndex! - 1)}
                         disabled={selectedIndex === 0}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs text-slate-500 hover:text-slate-800 hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                        className="flex items-center gap-2 px-3 md:px-5 py-1.5 md:py-3 rounded-xl font-bold text-xs md:text-sm text-slate-500 hover:text-slate-800 hover:bg-white border border-transparent hover:border-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all [@media(max-height:850px)]:gap-1 [@media(max-height:850px)]:py-1.5"
                       >
-                        <ChevronLeft size={18} />
+                        <ChevronLeft size={16} />
                         Previous
                       </button>
 
-                      <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex items-center gap-2 md:gap-4">
+                        <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest [@media(max-height:850px)]:text-[9px]">
                           Q{(selectedIndex || 0) + 1} / {questions.length}
                         </span>
                         <button
@@ -598,7 +600,7 @@ const PracticeManager: React.FC = () => {
                               addNewQuestion();
                             }
                           }}
-                          className="flex items-center gap-2 h-10 px-5 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all text-sm"
+                          className="flex items-center gap-2 h-10 md:h-14 px-4 md:px-8 bg-slate-900 text-white rounded-2xl font-bold text-xs md:text-base hover:bg-slate-800 shadow-xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-[0.98] [@media(max-height:850px)]:h-8 [@media(max-height:850px)]:px-4 [@media(max-height:850px)]:text-xs [@media(max-height:850px)]:rounded-xl"
                         >
                           {selectedIndex === questions.length - 1 ? (
                             <>
@@ -608,7 +610,7 @@ const PracticeManager: React.FC = () => {
                           ) : (
                             <>
                               Next Question
-                              <ChevronRight size={18} />
+                              <ChevronRight size={20} className="text-slate-400" />
                             </>
                           )}
                         </button>

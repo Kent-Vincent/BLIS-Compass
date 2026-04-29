@@ -65,13 +65,13 @@ const IndexEntry: React.FC = () => {
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-12"
+        className="text-center mb-10 md:mb-12 [@media(max-height:850px)]:mb-4"
       >
-        <div className="flex justify-center mb-6">
-          <Logo size={80} />
+        <div className="flex justify-center mb-4 md:mb-6 [@media(max-height:850px)]:mb-2">
+          <Logo size={70} className="[@media(max-height:850px)]:scale-75 transition-transform" />
         </div>
-        <h1 className="text-5xl font-bold text-slate-800 mb-4 tracking-tight">ComPASS</h1>
-        <p className="text-slate-600 max-w-md mx-auto text-lg">
+        <h1 className="text-4xl md:text-5xl font-bold text-slate-800 mb-2 md:mb-4 tracking-tight [@media(max-height:850px)]:text-3xl [@media(max-height:850px)]:mb-1">ComPASS</h1>
+        <p className="text-slate-600 max-w-md mx-auto text-base md:text-lg [@media(max-height:850px)]:text-sm">
           Your path to academic success.
         </p>
       </motion.div>
@@ -82,13 +82,15 @@ const IndexEntry: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.2 }}
         >
-          <GlassCard className="p-8 border-white/40">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">
-              Welcome Back
-            </h2>
-            <p className="text-slate-500 mb-8 text-sm">
-              Sign in to access your dashboard.
-            </p>
+          <GlassCard className="p-6 md:p-8 border-white/40 shadow-xl [@media(max-height:850px)]:p-5">
+            <div className="text-center mb-6 md:mb-8 [@media(max-height:850px)]:mb-4">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-1 [@media(max-height:850px)]:text-lg">
+                Welcome Back
+              </h2>
+              <p className="text-slate-500 text-xs md:text-sm">
+                Sign in to access your dashboard.
+              </p>
+            </div>
 
             {error && (
               <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm flex flex-col gap-3">
@@ -108,27 +110,27 @@ const IndexEntry: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-4 md:space-y-5 [@media(max-height:850px)]:space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">Email Address</label>
+                <label className="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 md:mb-2 ml-1">Email Address</label>
                 <input 
                   type="email" 
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white/50"
+                  className="w-full px-4 py-2.5 md:py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white/50 [@media(max-height:850px)]:py-2 [@media(max-height:850px)]:text-sm"
                   placeholder="name@example.com"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">Password</label>
+                <label className="block text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 md:mb-2 ml-1">Password</label>
                 <div className="relative">
                   <input 
                     type={showPassword ? "text" : "password"} 
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white/50 pr-12"
+                    className="w-full px-4 py-2.5 md:py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white/50 pr-12 [@media(max-height:850px)]:py-2 [@media(max-height:850px)]:text-sm"
                     placeholder="••••••••"
                   />
                   <button
@@ -136,31 +138,27 @@ const IndexEntry: React.FC = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
               <button 
                 type="submit"
                 disabled={loading}
-                className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 bg-blue-600 shadow-blue-200 hover:bg-blue-700 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                className={`w-full py-3.5 md:py-4 rounded-xl font-bold text-white shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 bg-blue-600 shadow-blue-200 hover:bg-blue-700 ${loading ? 'opacity-70 cursor-not-allowed' : ''} [@media(max-height:850px)]:py-2.5 [@media(max-height:850px)]:text-sm`}
               >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : 'Sign In'}
+                {loading ? <Loader2 className="animate-spin" size={18} /> : 'Sign In'}
                 {!loading && <ArrowRight size={18} />}
               </button>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-              <p className="text-slate-500 text-sm mb-2">Are you a student?</p>
-              <Link to="/register" className="text-blue-600 font-bold hover:underline">Create Student Account</Link>
+            <div className="mt-6 md:mt-8 pt-4 md:pt-6 border-t border-slate-100 text-center [@media(max-height:850px)]:mt-4 [@media(max-height:850px)]:pt-3">
+              <p className="text-slate-500 text-xs md:text-sm mb-1 [@media(max-height:850px)]:mb-0.5">Are you a student?</p>
+              <Link to="/register" className="text-blue-600 font-bold text-sm md:text-base hover:underline [@media(max-height:850px)]:text-sm">Create Student Account</Link>
             </div>
           </GlassCard>
         </motion.div>
       </div>
-
-      <footer className="mt-16 text-slate-400 text-xs uppercase tracking-widest font-medium">
-        
-      </footer>
     </div>
   );
 };
