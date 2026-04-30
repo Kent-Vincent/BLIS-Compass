@@ -46,7 +46,7 @@ import {
 import { AreaChart, Area, XAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const GAMES: GameCard[] = [
-  { id: '1', title: 'Reference Crush Pro', description: 'Test your reference skills in a fast-paced matching game.', category: 'Reference Services', icon: 'Search', difficulty: 'Advanced' },
+  { id: '1', title: 'Reference Crush', description: 'Test your reference skills in a fast-paced matching game.', category: 'Reference Services', icon: 'Search', difficulty: 'Advanced' },
   { id: '2', title: 'Source Detectives', description: 'Investigate and identify the correct sources in challenging scenarios.', category: 'Reference Services', icon: 'Search', difficulty: 'Intermediate' },
   { id: '3', title: 'Classify', description: 'Classify items correctly in this new challenge.', category: 'Classification', icon: 'Mountain', difficulty: 'Beginner' },
   { id: '4', title: 'Shelf Shuffle', description: 'Arrange books in the correct order on the shelf.', category: 'Cataloging', icon: 'Tags', difficulty: 'Intermediate' },

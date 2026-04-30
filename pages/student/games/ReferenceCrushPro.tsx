@@ -187,16 +187,17 @@ export default function ReferenceCrushPro() {
   // Main Menu
   if (gameState === 'menu') {
     return (
-      <div className="min-h-[70vh] flex flex-col p-4 md:p-8">
-        <div className="mb-12">
-          <BackToDashboard />
-        </div>
-        
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex-grow flex flex-col items-center justify-center text-center"
-        >
+      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12">
+            <BackToDashboard />
+          </div>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center justify-center text-center py-12"
+          >
           <div className="relative mb-8">
             <div className="w-24 h-24 bg-blue-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-200 rotate-3">
               <BookOpen size={48} />
@@ -207,7 +208,7 @@ export default function ReferenceCrushPro() {
           </div>
 
           <h1 className="text-5xl font-black text-slate-900 mb-4 tracking-tight">
-            Reference <span className="text-blue-600">Crush</span> Pro
+            Reference <span className="text-blue-600">Crush</span>
           </h1>
           <p className="text-slate-500 text-lg mb-12 max-w-md mx-auto leading-relaxed">
             Challenge your library knowledge! Identify the right reference sources in this interactive image-based quiz.
@@ -241,8 +242,9 @@ export default function ReferenceCrushPro() {
           </div>
         </motion.div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // Level Selection
   if (gameState === 'levels') {
@@ -317,25 +319,26 @@ export default function ReferenceCrushPro() {
   // Playing State
   if (gameState === 'playing') {
     return (
-      <div className="max-w-5xl mx-auto py-8 px-4">
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={() => setGameState('menu')}
-            className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium"
-          >
-            <ChevronLeft size={20} />
-            Quit Game
-          </button>
-          <div className="flex items-center gap-4">
-            <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-yellow-500" />
-              <span className="font-bold text-slate-700">Score: {score}</span>
-            </div>
-            <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100">
-              <span className="font-bold text-slate-700">Q: {currentQuestionIndex + 1}/{questions.length}</span>
+      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={() => setGameState('menu')}
+              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium"
+            >
+              <ChevronLeft size={20} />
+              Quit Game
+            </button>
+            <div className="flex items-center gap-4">
+              <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-yellow-500" />
+                <span className="font-bold text-slate-700">Score: {score}</span>
+              </div>
+              <div className="px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100">
+                <span className="font-bold text-slate-700">Q: {currentQuestionIndex + 1}/{questions.length}</span>
+              </div>
             </div>
           </div>
-        </div>
 
         <GlassCard className="p-8 md:p-12 mb-8 border-white/60">
           <h3 className="text-2xl md:text-3xl font-bold text-slate-800 mb-12 text-center leading-relaxed">
@@ -346,7 +349,7 @@ export default function ReferenceCrushPro() {
             {questions[currentQuestionIndex].options.map((option) => (
               <motion.button
                 key={option.id}
-                whileHover={{ y: -8, shadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
+                whileHover={{ y: -8, boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)" }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleOptionSelect(option.id)}
                 className={`group relative aspect-[3/4] rounded-2xl overflow-hidden border-4 transition-all duration-300 ${
@@ -380,8 +383,9 @@ export default function ReferenceCrushPro() {
           />
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // Feedback State
   if (gameState === 'feedback') {
