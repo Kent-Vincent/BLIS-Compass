@@ -64,7 +64,7 @@ const ExamBuilderPage: React.FC = () => {
   const handleJump = (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseInt(jumpInput);
-    if (!isNaN(num) && num >= 1 && num <= 600) {
+    if (!isNaN(num) && num >= 1 && num <= items.length) {
       setSelectedIndex(num - 1);
       setActiveSection(Math.floor((num - 1) / sectionSize));
       setJumpInput('');
@@ -100,9 +100,11 @@ const ExamBuilderPage: React.FC = () => {
 
       if (itemsError) throw itemsError;
       
-      // If no items, initialize with 600 empty ones
+      const targetCount = examData.total_items || 600;
+      
+      // If no items, initialize with required empty ones
       if (!itemsData || itemsData.length === 0) {
-        const initialItems = Array.from({ length: 600 }, (_, i) => ({
+        const initialItems = Array.from({ length: targetCount }, (_, i) => ({
           exam_id: id!,
           item_no: i + 1,
           question: '',
@@ -114,10 +116,10 @@ const ExamBuilderPage: React.FC = () => {
         } as MockExamItem));
         setItems(initialItems);
       } else {
-        // Ensure we have 600 items
+        // Ensure we have the target number of items
         const fullItems = [...itemsData];
-        if (fullItems.length < 600) {
-          for (let i = fullItems.length; i < 600; i++) {
+        if (fullItems.length < targetCount) {
+          for (let i = fullItems.length; i < targetCount; i++) {
             fullItems.push({
               exam_id: id!,
               item_no: i + 1,
@@ -130,7 +132,7 @@ const ExamBuilderPage: React.FC = () => {
             } as MockExamItem);
           }
         }
-        setItems(fullItems);
+        setItems(fullItems.slice(0, targetCount)); // Ensure we don't exceed target if it changed
       }
     } catch (err: any) {
       console.error('Error fetching exam data:', err);
@@ -150,7 +152,7 @@ const ExamBuilderPage: React.FC = () => {
   const handleBulkAssign = () => {
     if (!bulkRange.subjectId) return;
     const start = Number(bulkRange.start) || 1;
-    const end = Number(bulkRange.end) || 600;
+    const end = Number(bulkRange.end) || items.length;
     const newItems = [...items];
     for (let i = start - 1; i < end; i++) {
       if (newItems[i]) {
@@ -267,7 +269,7 @@ const ExamBuilderPage: React.FC = () => {
         throw new Error(`The ${extension.toUpperCase()} file was parsed but no questions were found. Check the file structure.`);
       }
 
-      const importedItems = rawData.slice(0, 600).map((row, idx) => {
+      const importedItems = rawData.map((row, idx) => {
         // Highly Robust Subject Matching (Fuzzy + Word-based)
         let subjectId = undefined;
         const sInputRaw = (row.subject_name || row.subject || row.category || '').toLowerCase().trim();
@@ -323,10 +325,11 @@ const ExamBuilderPage: React.FC = () => {
         } as MockExamItem;
       });
 
-      // Fill remaining with empty if less than 600
+      // Fill remaining with empty if less than target
+      const targetCount = exam?.total_items || 600;
       const finalItems = [...importedItems];
-      if (finalItems.length < 600) {
-        for (let i = finalItems.length; i < 600; i++) {
+      if (finalItems.length < targetCount) {
+        for (let i = finalItems.length; i < targetCount; i++) {
           finalItems.push({
             exam_id: id!,
             item_no: i + 1,
@@ -339,8 +342,7 @@ const ExamBuilderPage: React.FC = () => {
           } as MockExamItem);
         }
       }
-
-      setItems(finalItems);
+      setItems(finalItems.slice(0, targetCount));
       setSelectedIndex(0);
       setHasUnsavedChanges(true);
       setSuccess(true);
@@ -500,7 +502,7 @@ const ExamBuilderPage: React.FC = () => {
               </div>
             </div>
             <p className="text-xs font-bold text-slate-400">
-              {items.filter(i => i.question && i.choice_a).length} / 600 Questions Completed
+              {items.filter(i => i.question && i.choice_a).length} Questions Completed
             </p>
           </div>
         </div>
@@ -794,7 +796,7 @@ const ExamBuilderPage: React.FC = () => {
                       </div>
                       <div>
                         <h2 className="text-lg font-bold text-slate-800">Question Editor</h2>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Mock Board Item {selectedIndex + 1} of 600</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Mock Board Item {selectedIndex + 1}</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -918,7 +920,12 @@ const ExamBuilderPage: React.FC = () => {
       {/* Exit Confirmation Modal */}
       <AnimatePresence>
         {showExitConfirm && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed left-0 top-0 w-screen h-screen z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -950,7 +957,7 @@ const ExamBuilderPage: React.FC = () => {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

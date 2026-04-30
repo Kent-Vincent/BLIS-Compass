@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck, AlertTriangle, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck, AlertTriangle, X, CheckCircle2, AlertCircle, Settings } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
 import { MockExam } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -39,12 +39,14 @@ const MockExamsPage: React.FC = () => {
   const [exams, setExams] = useState<MockExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingExam, setEditingExam] = useState<MockExam | null>(null);
   const [warningModal, setWarningModal] = useState<{ isOpen: boolean, examTitle: string, currentCount: number } | null>(null);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     duration_minutes: 600,
     total_items: 600,
+    randomize_questions: false,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -82,30 +84,51 @@ const MockExamsPage: React.FC = () => {
 
     try {
       setSubmitting(true);
-      const { data, error } = await supabase
-        .from('mock_exams')
-        .insert([
-          {
-            ...formData,
-            created_by: user.id,
-            is_published: false, // Start as draft
-          },
-        ])
-        .select()
-        .single();
+      
+      if (editingExam) {
+        // Update existing exam
+        const { error } = await supabase
+          .from('mock_exams')
+          .update({
+            title: formData.title,
+            randomize_questions: formData.randomize_questions
+          })
+          .eq('id', editingExam.id);
+          
+        if (error) throw error;
+        
+        setExams(exams.map(e => e.id === editingExam.id ? { ...e, title: formData.title, randomize_questions: formData.randomize_questions } : e));
+        setToast({ message: 'Exam settings updated successfully', type: 'success' });
+        setIsModalOpen(false);
+        setEditingExam(null);
+        setFormData({ title: '', duration_minutes: 600, total_items: 600, randomize_questions: false });
+      } else {
+        // Create new exam
+        const { data, error } = await supabase
+          .from('mock_exams')
+          .insert([
+            {
+              ...formData,
+              created_by: user.id,
+              is_published: false, // Start as draft
+            },
+          ])
+          .select()
+          .single();
 
-      if (error) throw error;
-      
-      setIsModalOpen(false);
-      setFormData({ title: '', duration_minutes: 600, total_items: 600 });
-      
-      // Navigate to builder
-      if (data) {
-        navigate(`/staff/mock-exams/${data.id}`);
+        if (error) throw error;
+        
+        setIsModalOpen(false);
+        setFormData({ title: '', duration_minutes: 600, total_items: 600, randomize_questions: false });
+        
+        // Navigate to builder
+        if (data) {
+          navigate(`/staff/mock-exams/${data.id}`);
+        }
       }
     } catch (err: any) {
-      console.error('Error creating exam:', err);
-      setToast({ message: 'Failed to create exam. Please try again.', type: 'error' });
+      console.error('Error saving exam:', err);
+      setToast({ message: `Failed to ${editingExam ? 'update' : 'create'} exam. Please try again.`, type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -131,8 +154,8 @@ const MockExamsPage: React.FC = () => {
   };
 
   const togglePublish = async (exam: any) => {
-    // Check if it has 600 questions before publishing
-    if (!exam.is_published && exam.completed_count !== 600) {
+    // Check if it has at least 1 question before publishing
+    if (!exam.is_published && exam.completed_count < 1) {
       setWarningModal({
         isOpen: true,
         examTitle: exam.title,
@@ -212,6 +235,22 @@ const MockExamsPage: React.FC = () => {
                   </div>
                   <div className="flex gap-2">
                     <button 
+                      onClick={() => {
+                        setEditingExam(exam);
+                        setFormData({
+                          title: exam.title,
+                          duration_minutes: exam.duration_minutes,
+                          total_items: exam.total_items,
+                          randomize_questions: exam.randomize_questions || false
+                        });
+                        setIsModalOpen(true);
+                      }}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                      title="Edit Settings"
+                    >
+                      <Settings size={18} />
+                    </button>
+                    <button 
                       onClick={() => navigate(`/staff/mock-exams/${exam.id}`)}
                       className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                       title="Edit Questions"
@@ -271,7 +310,7 @@ const MockExamsPage: React.FC = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl"
           >
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">New Mock Board Exam</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-6">{editingExam ? 'Edit Exam Settings' : 'New Mock Board Exam'}</h2>
             <form onSubmit={handleCreateExam} className="space-y-5">
               <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 mb-6">
                 <div className="flex items-center gap-2 text-indigo-600 font-bold mb-1">
@@ -293,17 +332,16 @@ const MockExamsPage: React.FC = () => {
                   onChange={e => setFormData({...formData, title: e.target.value})}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Duration (Min)</label>
                   <input 
                     type="number" 
                     required
                     min="1"
-                    disabled
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-slate-50 text-slate-400"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white text-slate-700"
                     value={formData.duration_minutes}
-                    onChange={e => setFormData({...formData, duration_minutes: parseInt(e.target.value)})}
+                    onChange={e => setFormData({...formData, duration_minutes: parseInt(e.target.value) || 0})}
                   />
                 </div>
                 <div>
@@ -312,18 +350,40 @@ const MockExamsPage: React.FC = () => {
                     type="number" 
                     required
                     min="1"
-                    disabled
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-slate-50 text-slate-400"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white text-slate-700"
                     value={formData.total_items}
-                    onChange={e => setFormData({...formData, total_items: parseInt(e.target.value)})}
+                    onChange={e => setFormData({...formData, total_items: parseInt(e.target.value) || 0})}
                   />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-bold text-slate-700">Randomize Questions</label>
+                    <p className="text-[10px] text-slate-500">Enable to shuffle questions for each student.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, randomize_questions: !formData.randomize_questions })}
+                    className={`w-12 h-6 rounded-full transition-all relative ${formData.randomize_questions ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  >
+                    <motion.div 
+                      animate={{ x: formData.randomize_questions ? 26 : 2 }}
+                      className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-sm"
+                    />
+                  </button>
                 </div>
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingExam(null);
+                    setFormData({ title: '', duration_minutes: 600, total_items: 600, randomize_questions: false });
+                  }}
                   className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-all"
                 >
                   Cancel
@@ -333,7 +393,7 @@ const MockExamsPage: React.FC = () => {
                   disabled={submitting}
                   className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center"
                 >
-                  {submitting ? <Loader2 className="animate-spin" size={20} /> : 'Create & Build'}
+                  {submitting ? <Loader2 className="animate-spin" size={20} /> : (editingExam ? 'Save Changes' : 'Create & Build')}
                 </button>
               </div>
             </form>
@@ -356,7 +416,7 @@ const MockExamsPage: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Incomplete Exam</h2>
             <p className="text-slate-500 mb-8">
               The exam <span className="font-bold text-slate-700">"{warningModal.examTitle}"</span> cannot be published yet. 
-              It requires exactly <span className="font-bold text-indigo-600">600 questions</span>, but currently only has <span className="font-bold text-rose-500">{warningModal.currentCount}</span>.
+              It requires at least <span className="font-bold text-indigo-600">1 question</span> to be published, but currently has <span className="font-bold text-rose-500">{warningModal.currentCount}</span>.
             </p>
             
             <div className="flex flex-col gap-3">
