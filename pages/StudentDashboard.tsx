@@ -6,6 +6,7 @@ import GlassCard from '../components/GlassCard';
 import { GameCard, MockExam } from '../types';
 import { useAuth } from '../context/AuthContext';
 import MockExamsPage from './student/MockExamsPage';
+import MockExamLobby from './student/MockExamLobby';
 import TakeExamPage from './student/TakeExamPage';
 import StudentAnalytics from './student/StudentAnalytics';
 import PracticeSetsTab from './student/PracticeSetsTab';
@@ -308,7 +309,7 @@ const StudentDashboard: React.FC = () => {
   };
 
   const activeTab = getActiveTab();
-  const isPlayerActive = location.pathname.includes('/mock-exams/') || location.pathname.includes('/practice/');
+  const isPlayerActive = location.pathname.includes('/mock-exams/session/') || location.pathname.includes('/practice/');
 
   if (authLoading || !profile) {
     return (
@@ -433,7 +434,8 @@ const StudentDashboard: React.FC = () => {
           <Route path="games/4" element={<ShelfShuffle />} />
           <Route path="games/5" element={<MarcMatch />} />
           <Route path="mock-exams" element={<MockExamsPage />} />
-          <Route path="mock-exams/:id" element={<TakeExamPage />} />
+          <Route path="mock-exams/:id" element={<MockExamLobby />} />
+          <Route path="mock-exams/session/:id" element={<TakeExamPage />} />
           <Route path="practice" element={<PracticeSetsTab />} />
           <Route path="practice/:subjectId/part/:partNo" element={<PracticePlayer />} />
           <Route path="analytics" element={<StudentAnalytics />} />

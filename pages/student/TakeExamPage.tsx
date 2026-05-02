@@ -24,8 +24,9 @@ import {
   X
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
+import { MOCK_EXAM_SUBJECTS } from '../../src/constants';
 import { useAuth } from '../../context/AuthContext';
-import { MockExam, MockExamItem, MockExamAttempt, PracticeSubject } from '../../types';
+import { MockExam, MockExamItem, MockExamAttempt, PracticeSubject, MockExamSubjectSession } from '../../types';
 import GlassCard from '../../components/GlassCard';
 
 const TakeExamPage: React.FC = () => {
@@ -36,6 +37,7 @@ const TakeExamPage: React.FC = () => {
   const reportRef = useRef<HTMLDivElement>(null);
   
   const [exam, setExam] = useState<MockExam | null>(null);
+  const [session, setSession] = useState<MockExamSubjectSession | null>(null);
   const [items, setItems] = useState<MockExamItem[]>([]);
   const [subjects, setSubjects] = useState<PracticeSubject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +48,8 @@ const TakeExamPage: React.FC = () => {
   const [flagged, setFlagged] = useState<Record<string, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [allSessionsFinished, setAllSessionsFinished] = useState(false);
+  const [comprehensiveResult, setComprehensiveResult] = useState<any | null>(null);
   const [score, setScore] = useState(0);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [showNav, setShowNav] = useState(true);
@@ -79,115 +83,195 @@ const TakeExamPage: React.FC = () => {
   const answeredTotal = Object.keys(answers).length;
   const unansweredTotal = items.length - answeredTotal;
 
-  const sectionSize = 100;
-  const sections = Array.from({ length: 6 }, (_, i) => {
-    const start = i * sectionSize;
-    const end = Math.min((i + 1) * sectionSize, items.length);
-    
-    // A section is complete if all its questions are answered
-    const sectionItems = items.slice(start, end);
-    const isComplete = sectionItems.length > 0 && sectionItems.every(item => answers[item.id]);
-    
-    // Section is locked if it's not the first section and the previous section is not complete
-    // Temporary override: Section 501-600 (index 5) is always unlocked for demo purposes
-    const isLocked = i > 0 && i !== 5 && (() => {
-      const prevStart = (i - 1) * sectionSize;
-      const prevEnd = i * sectionSize;
-      const prevItems = items.slice(prevStart, prevEnd);
-      return prevItems.length > 0 && !prevItems.every(item => answers[item.id]);
-    })();
-
-    return {
-      label: `${start + 1}-${end}`,
-      start,
-      end,
-      isComplete,
-      isLocked
-    };
-  });
+    const sectionSize = 100;
+  const sections = [
+    {
+      label: `Session items 1-${items.length}`,
+      start: 0,
+      end: items.length,
+      isComplete: items.length > 0 && items.every(item => answers[item.id]),
+      isLocked: false
+    }
+  ];
 
   const fetchExamData = useCallback(async (retryCount = 0) => {
     try {
       setLoading(true);
       setError(null);
 
+      // Seeded random for stable shuffling
+      const seededRandom = (seed: number) => {
+        return () => {
+          seed = (seed * 9301 + 49297) % 233280;
+          return seed / 233280;
+        };
+      };
+
+      const seededShuffle = (array: MockExamItem[], seedStr: string) => {
+        let seed = 0;
+        for (let i = 0; i < seedStr.length; i++) {
+          seed = (seed << 5) - seed + seedStr.charCodeAt(i);
+          seed |= 0;
+        }
+        const rng = seededRandom(Math.abs(seed));
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(rng() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+      };
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
       // Wrap the entire fetch process in a timeout
       const results = await Promise.race([
         (async () => {
-          // Warm up session
-          await supabase.auth.getSession();
+          // 1. Fetch Session with its parent exam
+          const { data: sessionData, error: sessionError } = await supabase
+            .from('mock_exam_subject_sessions')
+            .select(`
+              *,
+              exam:mock_exams(*)
+            `)
+            .eq('id', id)
+            .single();
 
-          // Fetch Exam, Items, Subjects, and Attempt
-          return await Promise.all([
-            supabase
-              .from('mock_exams')
-              .select('*')
-              .eq('id', id)
-              .eq('is_published', true)
-              .single(),
-            supabase
-              .from('mock_exam_items')
-              .select('*')
-              .eq('exam_id', id)
-              .order('item_no', { ascending: true }),
-            supabase
-              .from('practice_subjects')
-              .select('*'),
+          if (sessionError) throw sessionError;
+
+          // 2. Fetch Items for this session
+          const { data: itemsData, error: itemsError } = await supabase
+            .from('mock_exam_items')
+            .select('*')
+            .eq('session_id', id)
+            .order('item_no', { ascending: true });
+
+          if (itemsError) throw itemsError;
+
+          // 3. Fetch Subjects and Attempt
+          const [subjectsRes, attemptRes] = await Promise.all([
+            supabase.from('practice_subjects').select('*'),
             supabase
               .from('mock_exam_attempts')
               .select('*')
-              .eq('exam_id', id)
+              .eq('session_id', id)
+              .eq('student_id', user.id)
               .eq('is_submitted', false)
               .maybeSingle()
           ]);
+
+          return [sessionData, itemsData, subjectsRes.data, attemptRes.data];
         })(),
         new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), 20000))
       ]);
 
-      const [examRes, itemsRes, subjectsRes, attemptRes] = results;
+      const [sessionData, rawItemsData, subjectsData, attemptData] = results;
 
-      if (examRes.error) throw examRes.error;
-      if (itemsRes.error) throw itemsRes.error;
+      const examData = sessionData.exam as MockExam;
+      let itemsToUse = rawItemsData || [];
 
-      setExam(examRes.data);
-      setItems(itemsRes.data || []);
-      setSubjects(subjectsRes.data || []);
+      // Apply randomization if enabled
+      if (examData.randomize_questions && user.id) {
+        itemsToUse = seededShuffle(itemsToUse, `${user.id}-${id}`);
+      }
 
-      if (attemptRes.data) {
-        const attempt = attemptRes.data as MockExamAttempt;
-        setAttemptId(attempt.id);
-        setAnswers(attempt.answers || {});
-        setFlagged(attempt.flagged || {});
-        setTimeLeft(attempt.time_left_seconds);
-        setCurrentIndex(attempt.current_index || 0);
+      setExam(examData);
+      setSession(sessionData);
+      setItems(itemsToUse);
+      setSubjects(subjectsData || []);
+
+      // Check if all sessions for this exam are finished by this student
+      const { data: allExamSessions } = await supabase
+        .from('mock_exam_subject_sessions')
+        .select('id')
+        .eq('exam_id', examData.id);
+      
+      const { data: userSubmittedAttempts } = await supabase
+        .from('mock_exam_attempts')
+        .select('session_id')
+        .eq('exam_id', examData.id)
+        .eq('student_id', user.id)
+        .eq('is_submitted', true);
+
+      const totalSessions = allExamSessions?.length || 0;
+      const submittedSessions = userSubmittedAttempts?.length || 0;
+      
+      // If we are currently loading an already submitted attempt
+      const { data: currentSessionAttempt } = await supabase
+        .from('mock_exam_attempts')
+        .select('is_submitted')
+        .eq('session_id', id)
+        .eq('student_id', user.id)
+        .maybeSingle();
+
+      const isCurrentSubmitted = currentSessionAttempt?.is_submitted || false;
+      
+      setAllSessionsFinished(submittedSessions >= totalSessions);
+      
+      if (submittedSessions >= totalSessions) {
+        const { data: results } = await supabase
+          .from('mock_exam_results')
+          .select('*')
+          .eq('exam_id', examData.id)
+          .eq('student_id', user.id);
+        
+        if (results && results.length > 0) {
+          // Combine results for comprehensive view
+          const combinedBreakdown = results
+            .flatMap(r => r.category_breakdown || [])
+            .sort((a, b) => {
+              const indexA = MOCK_EXAM_SUBJECTS.indexOf(a.name);
+              const indexB = MOCK_EXAM_SUBJECTS.indexOf(b.name);
+              return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+            });
+          const totalScore = results.reduce((acc, curr) => acc + curr.score, 0);
+          const totalItems = results.reduce((acc, curr) => acc + curr.total_items, 0);
+          
+          // Recalculate GWA based on weights
+          let totalGWA = 0;
+          combinedBreakdown.forEach(item => {
+            if (item.contribution) {
+              totalGWA += parseFloat(item.contribution);
+            }
+          });
+
+          setComprehensiveResult({
+            score: totalScore,
+            totalItems: totalItems,
+            percentage: parseFloat(totalGWA.toFixed(2)),
+            breakdown: combinedBreakdown,
+            passed: totalGWA >= 75
+          });
+        }
+      }
+      
+      if (isCurrentSubmitted) {
+        setIsFinished(true);
+      }
+
+      if (attemptData) {
+        setAttemptId(attemptData.id);
+        setAnswers(attemptData.answers || {});
+        setFlagged(attemptData.flagged || {});
+        setTimeLeft(attemptData.time_left_seconds);
+        setCurrentIndex(attemptData.current_index || 0);
       } else {
-        setTimeLeft(examRes.data.duration_minutes * 60);
+        setTimeLeft(sessionData.duration_minutes * 60);
       }
     } catch (err: any) {
-      console.error('Error fetching exam data:', err);
+      console.error('Error fetching session data:', err);
       
-      // Retry logic for network issues or timeouts
       if (retryCount < 3) {
-        console.log(`Retrying fetchExamData... (Attempt ${retryCount + 1})`);
         await new Promise(r => setTimeout(r, 3000));
         return fetchExamData(retryCount + 1);
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError('Your session has expired. Please refresh the page to continue.');
-        return;
-      }
-
-      const msg = err.message === 'Fetch timeout'
-        ? 'The connection is taking longer than expected. Please check your internet and try again.'
-        : (err.message || 'Failed to load exam data. Please check your connection.');
-      
-      setError(msg);
+      setError(err.message || 'Failed to load simulation data');
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, profile]);
 
   useEffect(() => {
     if (id) {
@@ -248,7 +332,8 @@ const TakeExamPage: React.FC = () => {
 
     const attemptData = {
       student_id: user.id,
-      exam_id: id,
+      exam_id: exam.id,
+      session_id: id,
       answers,
       flagged,
       time_left_seconds: timeLeft,
@@ -381,6 +466,61 @@ const TakeExamPage: React.FC = () => {
     setIsFinished(true);
     setShowReviewModal(false);
     await saveProgress(true, correctCount);
+
+    // Refresh allSessionsFinished status after submission
+    if (exam && id && profile) {
+      const { data: allExamSessions } = await supabase
+        .from('mock_exam_subject_sessions')
+        .select('id')
+        .eq('exam_id', exam.id);
+      
+      const { data: userSubmittedAttempts } = await supabase
+        .from('mock_exam_attempts')
+        .select('session_id')
+        .eq('exam_id', exam.id)
+        .eq('student_id', profile.id)
+        .eq('is_submitted', true);
+
+      if (allExamSessions && userSubmittedAttempts) {
+        const isAllDone = userSubmittedAttempts.length >= allExamSessions.length;
+        setAllSessionsFinished(isAllDone);
+
+        if (isAllDone) {
+          const { data: results } = await supabase
+            .from('mock_exam_results')
+            .select('*')
+            .eq('exam_id', exam.id)
+            .eq('student_id', profile.id);
+          
+          if (results && results.length > 0) {
+            const combinedBreakdown = results
+              .flatMap(r => r.category_breakdown || [])
+              .sort((a, b) => {
+                const indexA = MOCK_EXAM_SUBJECTS.indexOf(a.name);
+                const indexB = MOCK_EXAM_SUBJECTS.indexOf(b.name);
+                return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+              });
+            const totalScore = results.reduce((acc, curr) => acc + curr.score, 0);
+            const totalItems = results.reduce((acc, curr) => acc + curr.total_items, 0);
+            
+            let totalGWA = 0;
+            combinedBreakdown.forEach(item => {
+              if (item.contribution) {
+                totalGWA += parseFloat(item.contribution);
+              }
+            });
+
+            setComprehensiveResult({
+              score: totalScore,
+              totalItems: totalItems,
+              percentage: parseFloat(totalGWA.toFixed(2)),
+              breakdown: combinedBreakdown,
+              passed: totalGWA >= 75
+            });
+          }
+        }
+      }
+    }
   };
 
   const handleDownloadPDF = async () => {
@@ -445,30 +585,29 @@ const TakeExamPage: React.FC = () => {
   }
 
   if (isFinished) {
+    const isSessionAttempt = !!attemptId;
+    
     let totalGWA = 0;
-    const breakdown = subjects.map(sub => {
-      const subItems = items.filter(item => item.subject_id === sub.id);
-      if (subItems.length === 0) return null;
-      
-      const correct = subItems.filter(item => answers[item.id] === item.correct_answer).length;
-      const mapping = SUBJECT_MAPPING[sub.name] || { displayName: sub.name, weight: 0 };
-      
-      const rating = (correct / subItems.length) * 100;
-      const contribution = (rating * mapping.weight) / 100;
-      totalGWA += contribution;
-      
-      return {
-        name: mapping.displayName,
-        score: correct,
-        total: subItems.length,
-        weight: mapping.weight,
-        rating: rating.toFixed(2),
-        contribution: contribution.toFixed(2)
-      };
-    }).filter(Boolean);
+    let actualBreakdown = [];
 
-    const finalGWA = parseFloat(totalGWA.toFixed(2));
-    const passed = finalGWA >= 75;
+    if (items.length > 0) {
+      // Calculate results for the session
+      const correct = items.filter(item => answers[item.id] === item.correct_answer).length;
+      const scorePercentage = (correct / items.length) * 100;
+      
+      actualBreakdown = [{
+        name: session?.subject_name || 'Subject Session',
+        score: correct,
+        total: items.length,
+        rating: scorePercentage.toFixed(2),
+        passed: scorePercentage >= 75
+      }];
+      
+      totalGWA = scorePercentage;
+    }
+
+    const finalResultScore = parseFloat(totalGWA.toFixed(2));
+    const passed = finalResultScore >= 75;
 
     return (
       <div className="max-w-5xl mx-auto py-12 px-6">
@@ -478,7 +617,6 @@ const TakeExamPage: React.FC = () => {
           className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100"
         >
           <div className={`p-10 text-center ${passed ? 'bg-emerald-600' : 'bg-rose-600'} text-white relative overflow-hidden`}>
-            {/* Decorative background elements */}
             <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
               <div className="absolute -top-24 -left-24 w-64 h-64 bg-white rounded-full blur-3xl" />
               <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl" />
@@ -489,16 +627,15 @@ const TakeExamPage: React.FC = () => {
                 {passed ? <Trophy size={40} /> : <XCircle size={40} />}
               </div>
               <h2 className="text-3xl font-black mb-2 tracking-tight">
-                MOCK BOARD EXAMINATION RESULT
+                {allSessionsFinished ? 'EXAM COMPLETION RESULT' : 'SESSION SUBMITTED'}
               </h2>
               <p className="text-white/80 font-bold uppercase tracking-[0.2em] text-xs">
-                Academic Year 2025-2026
+                {session?.subject_name || 'Subject Session'}
               </p>
             </div>
           </div>
 
           <div className="p-8 md:p-12" ref={reportRef}>
-            {/* Student Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 pb-8 border-b border-slate-100">
               <div className="space-y-4">
                 <div>
@@ -506,114 +643,101 @@ const TakeExamPage: React.FC = () => {
                   <p className="text-xl font-bold text-slate-800">{profile?.name || 'Loading...'}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Course & Year</p>
-                  <p className="text-lg font-bold text-slate-700">BLIS-4</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Exam Title</p>
+                  <p className="text-lg font-bold text-slate-700">{exam?.title}</p>
                 </div>
               </div>
               <div className="flex flex-col items-center md:items-end justify-center">
                 <div className="text-center md:text-right">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">General Weighted Average</p>
-                  <p className={`text-6xl font-black ${passed ? 'text-emerald-600' : 'text-rose-600'}`}>{finalGWA}%</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Results Table */}
-            <div className="bg-slate-50/50 rounded-3xl border border-slate-100 overflow-hidden mb-12">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100/50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                      <th className="py-5 px-6">Subjects</th>
-                      <th className="py-5 px-4 text-center">Required Percentile</th>
-                      <th className="py-5 px-4 text-center">Actual Score</th>
-                      <th className="py-5 px-4 text-center">Rating</th>
-                      <th className="py-5 px-6 text-right">Percentile Distribution</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {breakdown.map((item: any, idx) => (
-                      <tr key={idx} className="hover:bg-white transition-colors group">
-                        <td className="py-5 px-6">
-                          <div className="flex items-start gap-3">
-                            <span className="text-slate-300 font-black text-xs mt-0.5">{idx + 1}.</span>
-                            <span className="text-sm font-bold text-slate-700 leading-snug">{item.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-5 px-4 text-center">
-                          <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg font-bold text-xs">{item.weight}%</span>
-                        </td>
-                        <td className="py-5 px-4 text-center">
-                          <span className="text-sm font-bold text-slate-600">{item.score} / {item.total}</span>
-                        </td>
-                        <td className="py-5 px-4 text-center">
-                          <span className={`text-sm font-black ${parseFloat(item.rating) >= 75 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                            {item.rating}%
-                          </span>
-                        </td>
-                        <td className="py-5 px-6 text-right">
-                          <span className="text-sm font-black text-indigo-600">{item.contribution}%</span>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="bg-indigo-600 text-white font-black">
-                      <td className="py-6 px-6 rounded-bl-3xl">TOTAL:</td>
-                      <td className="py-6 px-4 text-center">100%</td>
-                      <td className="py-6 px-4 text-center">{score} / {items.length}</td>
-                      <td className="py-6 px-4 text-center">-</td>
-                      <td className="py-6 px-6 text-right rounded-br-3xl">{finalGWA}%</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Summary & Footer */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-              <div className="space-y-6">
-                <div className="p-8 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Total Score:</span>
-                    <span className="text-lg font-bold text-slate-800">{score} / {items.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">General Weighted Average:</span>
-                    <span className="text-lg font-bold text-slate-800">{finalGWA}%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Rate:</span>
-                    <span className={`text-lg font-black ${passed ? 'text-emerald-600' : 'text-rose-600'}`}>{finalGWA}%</span>
-                  </div>
-                  <div className="pt-4 border-t border-slate-200">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Final Remarks:</p>
-                    <div className={`text-3xl font-black ${passed ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {passed ? 'PASSED' : 'FAILED'}
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    {allSessionsFinished ? 'Final Rating (GWA)' : 'Session Status'}
+                  </p>
+                  {allSessionsFinished ? (
+                    <p className={`text-6xl font-black ${comprehensiveResult?.passed ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {comprehensiveResult?.percentage || finalResultScore}%
+                    </p>
+                  ) : (
+                    <div className="flex flex-col items-center md:items-end">
+                      <p className="text-3xl font-black text-indigo-600">SUBMITTED</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Pending Exam Completion</p>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-end space-y-12 text-center lg:text-right">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Checked and verified by:</p>
-                  <p className="text-sm font-black text-slate-800 uppercase">ISAVAL MAE C. MONTERDE, RL, MLIS</p>
-                  <p className="text-[10px] font-bold text-slate-500">LPr2/LIS115 Instructor/ BLIS Coordinator</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Noted by:</p>
-                  <p className="text-sm font-black text-slate-800 uppercase">OWEN B. PILONGO, MIT, DBM-IS</p>
-                  <p className="text-[10px] font-bold text-slate-500">Dean, CET</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="mt-16 flex flex-col sm:flex-row gap-4 no-print">
+            <div className="bg-slate-50/50 rounded-3xl border border-slate-100 overflow-hidden mb-12 p-8">
+               <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+                  <div className="flex-1 space-y-4">
+                     <h3 className="font-bold text-slate-800 text-lg">
+                       {allSessionsFinished ? 'Detailed Performance Breakdown' : 'Performance Summary'}
+                     </h3>
+                     {allSessionsFinished ? (
+                       <div className="space-y-6">
+                         <p className="text-slate-500 text-sm">
+                           Congratulations on completing the entire mock board examination! Below is your weighted performance across all subjects.
+                         </p>
+                         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+                           <table className="w-full text-left border-collapse">
+                             <thead>
+                               <tr className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                                 <th className="py-3 px-4">Subject</th>
+                                 <th className="py-3 px-2 text-center">Score</th>
+                                 <th className="py-3 px-2 text-center">Rating</th>
+                                 <th className="py-3 px-4 text-right">GWA Cont.</th>
+                               </tr>
+                             </thead>
+                             <tbody className="divide-y divide-slate-50">
+                               {comprehensiveResult?.breakdown?.map((item: any, idx: number) => (
+                                 <tr key={idx} className="text-[11px]">
+                                   <td className="py-3 px-4 font-bold text-slate-700 leading-tight">{item.name}</td>
+                                   <td className="py-3 px-2 text-center text-slate-500">{item.score}/{item.total}</td>
+                                   <td className="py-3 px-2 text-center font-bold text-slate-700">{item.rating}%</td>
+                                   <td className="py-3 px-4 text-right font-black text-indigo-600">{item.contribution}%</td>
+                                 </tr>
+                               ))}
+                               <tr className="bg-indigo-50/50 font-black text-xs">
+                                 <td className="py-4 px-4 text-indigo-900 uppercase">General Weighted Average</td>
+                                 <td className="py-4 px-2 text-center text-indigo-900">{comprehensiveResult?.score}/{comprehensiveResult?.totalItems}</td>
+                                 <td className="py-4 px-2 text-center text-indigo-900">-</td>
+                                 <td className="py-4 px-4 text-right text-indigo-700 text-lg">{comprehensiveResult?.percentage}%</td>
+                               </tr>
+                             </tbody>
+                           </table>
+                         </div>
+                       </div>
+                     ) : (
+                       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                         <div className="flex items-center gap-3 text-indigo-600 mb-3">
+                           <CheckCircle2 size={24} />
+                           <h4 className="font-bold uppercase tracking-wider">Submission Received</h4>
+                         </div>
+                         <p className="text-slate-500 text-sm leading-relaxed">
+                           Your answers for <strong>{session?.subject_name}</strong> have been successfully recorded. 
+                           To maintain the integrity of the mock board exam, individual session scores are hidden until all subjects have been completed.
+                         </p>
+                         <p className="text-slate-400 text-xs mt-4 font-medium italic">
+                           Finish all remaining subjects to view your comprehensive rating and performance analytics.
+                         </p>
+                       </div>
+                     )}
+                  </div>
+                  {allSessionsFinished && (
+                    <div className={`w-32 h-32 rounded-full border-8 flex flex-col items-center justify-center shrink-0 ${comprehensiveResult?.passed ? 'border-emerald-100 text-emerald-600' : 'border-rose-100 text-rose-600'}`}>
+                       <span className="text-2xl font-black">{comprehensiveResult?.percentage}%</span>
+                       <span className="text-[8px] font-black uppercase tracking-widest leading-none">Final GWA</span>
+                    </div>
+                  )}
+               </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 no-print">
               <button
-                onClick={() => navigate('/student/mock-exams')}
+                onClick={() => navigate(`/student/mock-exams/${exam?.id}`)}
                 className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
               >
                 <ArrowLeft size={20} />
-                Back to Exams
+                Back to Session List
               </button>
               <button
                 onClick={handleDownloadPDF}
@@ -642,12 +766,12 @@ const TakeExamPage: React.FC = () => {
         {/* Header */}
         <div className="flex justify-between items-center bg-white/90 backdrop-blur-md z-50 py-2 md:py-3 px-3 md:px-5 rounded-2xl md:rounded-[2rem] border border-slate-200/50 shadow-sm shrink-0 [@media(max-height:900px)]:py-1.5 [@media(max-height:900px)]:px-4">
           <div className="flex items-center gap-1.5 md:gap-4">
-            <button 
-              onClick={() => navigate('/student/mock-exams')}
-              className="p-1 md:p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
-            >
-              <ArrowLeft size={18} className="md:w-6 md:h-6" />
-            </button>
+                 <button 
+                  onClick={() => navigate(`/student/mock-exams/${exam?.id}`)}
+                  className="p-1 md:p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  <ArrowLeft size={18} className="md:w-6 md:h-6" />
+                </button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xs md:text-lg xl:text-xl font-bold text-slate-800 line-clamp-1">

@@ -28,17 +28,32 @@ export interface GameCard {
 export interface MockExam {
   id: string;
   title: string;
-  duration_minutes: number;
-  total_items: number;
-  completed_count: number;
-  created_by: string;
+  description?: string;
   is_published: boolean;
+  created_by: string;
+  created_at: string;
+  // Legacy fields (optional for backward compatibility if needed, but we'll focus on sessions)
+  duration_minutes?: number;
+  total_items?: number;
+  completed_count?: number;
+  randomize_questions?: boolean;
+}
+
+export interface MockExamSubjectSession {
+  id: string;
+  exam_id: string;
+  subject_name: string;
+  open_at: string;
+  duration_minutes: number;
+  question_limit: number;
+  completed_count: number;
   created_at: string;
 }
 
 export interface MockExamItem {
   id: string;
-  exam_id: string;
+  exam_id: string; // Can be session_id now
+  session_id?: string; // Explicit link to session
   item_no: number;
   question: string;
   choice_a: string;
@@ -53,7 +68,8 @@ export interface MockExamItem {
 export interface MockExamAttempt {
   id: string;
   student_id: string;
-  exam_id: string;
+  exam_id: string; // Parent exam ID
+  session_id: string; // Specific session ID
   score: number;
   total_items: number;
   answers: Record<string, string>;

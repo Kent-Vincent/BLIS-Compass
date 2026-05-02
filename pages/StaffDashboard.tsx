@@ -8,6 +8,7 @@ import PracticeManager from './staff/PracticeManager';
 import AccountManager from './staff/AccountManager';
 import AnalyticsPage from './staff/AnalyticsPage';
 import QuestionBankPage from './staff/QuestionBankPage';
+import MockExamSessionsPage from './staff/MockExamSessionsPage';
 import { motion } from 'motion/react';
 import { Users, BookOpen, GraduationCap, TrendingUp, Database } from 'lucide-react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
@@ -132,14 +133,20 @@ const StaffDashboard: React.FC = () => {
       <StaffSidebar />
       <div className="flex-1 flex flex-col">
         <StaffHeader />
-        <main className={location.pathname.includes('/staff/practice') ? "flex-1 overflow-hidden" : "p-8"}>
+        <main className={
+          location.pathname.includes('/staff/practice') || 
+          location.pathname.includes('/staff/mock-exams/sessions/') 
+            ? "flex-1 overflow-hidden" 
+            : "p-8"
+        }>
           <Routes>
             <Route path="overview" element={<Overview />} />
             <Route path="accounts" element={<AccountManager />} />
             <Route path="practice" element={<PracticeManager />} />
             <Route path="question-bank" element={<QuestionBankPage />} />
             <Route path="mock-exams" element={<MockExamsPage />} />
-            <Route path="mock-exams/:id" element={<ExamBuilderPage />} />
+            <Route path="mock-exams/:id/sessions" element={<MockExamSessionsPage />} />
+            <Route path="mock-exams/sessions/:id" element={<ExamBuilderPage />} />
             <Route path="rooms" element={<PlaceholderPage title="Mockboard Rooms" />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="settings" element={<PlaceholderPage title="Settings" />} />

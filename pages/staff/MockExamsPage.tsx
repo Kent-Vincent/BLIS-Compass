@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck, AlertTriangle, X, CheckCircle2, AlertCircle, Settings } from 'lucide-react';
+import { Plus, FileText, Clock, ListChecks, Trash2, Edit, ExternalLink, Loader2, ShieldCheck, AlertTriangle, X, CheckCircle2, AlertCircle, Settings, ChevronRight } from 'lucide-react';
 import { supabase } from '../../src/lib/supabase';
 import { MockExam } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -59,16 +59,24 @@ const MockExamsPage: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('mock_exams')
-        .select('*')
+        .select(`
+          *,
+          mock_exam_subject_sessions(completed_count)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // Transform data to ensure completed_count is at least 0
-      const transformedExams = (data || []).map(exam => ({
-        ...exam,
-        completed_count: exam.completed_count || 0
-      }));
+      // Transform data to ensure completed_count is accurate
+      const transformedExams = (data || []).map(exam => {
+        const sessions = (exam as any).mock_exam_subject_sessions || [];
+        const sessionTotal = sessions.reduce((sum: number, s: any) => sum + (s.completed_count || 0), 0);
+        
+        return {
+          ...exam,
+          completed_count: sessionTotal // Use the calculated total from sessions
+        };
+      });
       
       setExams(transformedExams);
     } catch (err) {
@@ -121,9 +129,9 @@ const MockExamsPage: React.FC = () => {
         setIsModalOpen(false);
         setFormData({ title: '', duration_minutes: 600, total_items: 600, randomize_questions: false });
         
-        // Navigate to builder
+        // Navigate to sessions
         if (data) {
-          navigate(`/staff/mock-exams/${data.id}`);
+          navigate(`/staff/mock-exams/${data.id}/sessions`);
         }
       }
     } catch (err: any) {
@@ -251,11 +259,11 @@ const MockExamsPage: React.FC = () => {
                       <Settings size={18} />
                     </button>
                     <button 
-                      onClick={() => navigate(`/staff/mock-exams/${exam.id}`)}
+                      onClick={() => navigate(`/staff/mock-exams/${exam.id}/sessions`)}
                       className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                      title="Edit Questions"
+                      title="Manage Sessions"
                     >
-                      <Edit size={18} />
+                      <ListChecks size={18} />
                     </button>
                     <button 
                       onClick={() => handleDeleteExam(exam.id)}
@@ -290,10 +298,10 @@ const MockExamsPage: React.FC = () => {
                     {exam.is_published ? 'Unpublish' : 'Publish Now'}
                   </button>
                   <button 
-                    onClick={() => navigate(`/staff/mock-exams/${exam.id}`)}
+                    onClick={() => navigate(`/staff/mock-exams/${exam.id}/sessions`)}
                     className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2"
                   >
-                    Builder <ExternalLink size={14} />
+                    Sessions <ChevronRight size={14} />
                   </button>
                 </div>
               </GlassCard>
@@ -315,10 +323,10 @@ const MockExamsPage: React.FC = () => {
               <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 mb-6">
                 <div className="flex items-center gap-2 text-indigo-600 font-bold mb-1">
                   <ShieldCheck size={18} />
-                  <span>Official Mock Board Format</span>
+                  <span>Scheduled Board Simulation</span>
                 </div>
                 <p className="text-xs text-indigo-500 font-medium">
-                  This exam is automatically configured with 600 questions and a 600-minute time limit.
+                  This mock board will contain 6 subjects with 100 questions each.
                 </p>
               </div>
               <div>
@@ -393,7 +401,7 @@ const MockExamsPage: React.FC = () => {
                   disabled={submitting}
                   className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center"
                 >
-                  {submitting ? <Loader2 className="animate-spin" size={20} /> : (editingExam ? 'Save Changes' : 'Create & Build')}
+                  {submitting ? <Loader2 className="animate-spin" size={20} /> : (editingExam ? 'Save Changes' : 'Create Mock Board')}
                 </button>
               </div>
             </form>
@@ -423,13 +431,13 @@ const MockExamsPage: React.FC = () => {
               <button 
                 onClick={() => {
                   const exam = exams.find(e => e.title === warningModal.examTitle);
-                  if (exam) navigate(`/staff/mock-exams/${exam.id}`);
+                  if (exam) navigate(`/staff/mock-exams/${exam.id}/sessions`);
                   setWarningModal(null);
                 }}
                 className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
               >
-                Go to Builder
-                <ExternalLink size={18} />
+                Go to Sessions
+                <ChevronRight size={18} />
               </button>
               <button 
                 onClick={() => setWarningModal(null)}

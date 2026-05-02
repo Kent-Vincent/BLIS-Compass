@@ -249,16 +249,16 @@ const MockExamsPage: React.FC = () => {
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <div className="flex items-center gap-2 text-slate-400 mb-1">
                         <Clock size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Duration</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Format</span>
                       </div>
-                      <p className="text-sm font-bold text-slate-700">{exam.duration_minutes}m</p>
+                      <p className="text-[11px] font-bold text-slate-700 uppercase">Subject Based</p>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <div className="flex items-center gap-2 text-slate-400 mb-1">
                         <ListChecks size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Items</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Subjects</span>
                       </div>
-                      <p className="text-sm font-bold text-slate-700">{exam.total_items}</p>
+                      <p className="text-sm font-bold text-slate-700">6 Sessions</p>
                     </div>
                   </div>
 
