@@ -23,10 +23,15 @@ import {
   Upload,
   Layers,
   ArrowRight,
-  Save
+  Save,
+  FileText,
+  AlertTriangle,
+  ShieldCheck
 } from 'lucide-react';
+import Papa from 'papaparse';
+import mammoth from 'mammoth';
 import { supabase } from '../../src/lib/supabase';
-import { PracticeSubject, PracticeQuestion, MockExamItem } from '../../types';
+import { PracticeSubject, PracticeQuestion, MockExamItem, MockExam } from '../../types';
 import GlassCard from '../../components/GlassCard';
 import { createPortal } from 'react-dom';
 
@@ -41,6 +46,17 @@ const QuestionBankPage: React.FC = () => {
   const [editingQuestion, setEditingQuestion] = useState<any | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importResults, setImportResults] = useState<{success: number, total: number} | null>(null);
+  const [selectedItems, setSelectedItems] = useState<any[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, item: any | null, isBatch: boolean }>({
+    open: false,
+    item: null,
+    isBatch: false
+  });
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [exams, setExams] = useState<MockExam[]>([]);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,6 +78,12 @@ const QuestionBankPage: React.FC = () => {
     try {
       const { data: subData } = await supabase.from('practice_subjects').select('*');
       setSubjects(subData || []);
+
+      const { data: examData } = await supabase.from('mock_exams').select('*').order('created_at', { ascending: false });
+      setExams(examData || []);
+
+      // Clear selection when background data changes significantly
+      setSelectedItems([]);
 
       let pCount = 0;
       let eCount = 0;
@@ -144,8 +166,131 @@ const QuestionBankPage: React.FC = () => {
     }
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportResults(null);
+    
+    try {
+      let parsedData: any[] = [];
+
+      if (file.name.endsWith('.csv')) {
+        const text = await file.text();
+        const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+        parsedData = result.data;
+      } else if (file.name.endsWith('.docx')) {
+        const arrayBuffer = await file.arrayBuffer();
+        const { value } = await mammoth.convertToHtml({ arrayBuffer });
+        
+        // Simple parser for HTML/Word content
+        const div = document.createElement('div');
+        div.innerHTML = value;
+        const paragraphs = div.querySelectorAll('p');
+        
+        let current: any = null;
+        paragraphs.forEach(p => {
+          const text = p.innerText.trim();
+          if (!text) return;
+
+          const qMatch = text.match(/^(\d+)[\.\)]\s*(.*)/i);
+          if (qMatch) {
+            if (current) parsedData.push(current);
+            current = { 
+              question: qMatch[2], 
+              choice_a: '', choice_b: '', choice_c: '', choice_d: '', 
+              correct_answer: 'a',
+              subject_id: filterSubject !== 'all' ? filterSubject : subjects[0]?.id
+            };
+          } else if (current) {
+            const optMatch = text.match(/^([a-d])[\.\)]\s*(.*)/i);
+            if (optMatch) {
+              current[`choice_${optMatch[1].toLowerCase()}`] = optMatch[2];
+            } else if (text.toLowerCase().includes('answer:')) {
+              const ans = text.toLowerCase().split('answer:')[1].trim()[0];
+              if (['a','b','c','d'].includes(ans)) current.correct_answer = ans;
+            }
+          }
+        });
+        if (current) parsedData.push(current);
+      }
+
+      if (parsedData.length === 0) {
+        alert('No valid questions found in file. Please use the template format.');
+        return;
+      }
+
+      // Process and Save
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      let successCount = 0;
+      for (const q of parsedData) {
+        if (!q.question) continue;
+        
+        const dataToInsert = {
+          subject_id: q.subject_id || (filterSubject !== 'all' ? filterSubject : subjects[0]?.id),
+          question: q.question,
+          choice_a: q.choice_a || '',
+          choice_b: q.choice_b || '',
+          choice_c: q.choice_c || '',
+          choice_d: q.choice_d || '',
+          correct_answer: q.correct_answer?.toLowerCase() || 'a',
+          explanation: q.explanation || '',
+          created_by: user.id,
+          part: parseInt(q.part) || 1
+        };
+
+        const { error } = await supabase.from('practice_questions').insert([dataToInsert]);
+        if (!error) successCount++;
+      }
+
+      setImportResults({ success: successCount, total: parsedData.length });
+      fetchData();
+    } catch (err) {
+      console.error('Import failed:', err);
+      alert('Import failed. Check console for details.');
+    } finally {
+      setImporting(false);
+      if (event.target) event.target.value = '';
+    }
+  };
+
+  const downloadTemplate = () => {
+    const csv = Papa.unparse([{
+      question: "Sample Question Text",
+      choice_a: "Option A",
+      choice_b: "Option B",
+      choice_c: "Option C",
+      choice_d: "Option D",
+      correct_answer: "a",
+      explanation: "Why A is correct",
+      part: "1"
+    }]);
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'question_bank_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleSave = async () => {
     if (!editingQuestion) return;
+
+    if (!editingQuestion.question || !editingQuestion.choice_a || !editingQuestion.choice_b || !editingQuestion.choice_c || !editingQuestion.choice_d) {
+      alert('Please fill out the question and all choices.');
+      return;
+    }
+
     setSaving(true);
     try {
       const { type, ...rest } = editingQuestion;
@@ -154,18 +299,19 @@ const QuestionBankPage: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const dataToSave: any = {
-        ...rest
-      };
+      // Prepare data for save
+      const dataToSave = { ...rest };
+      
+      // Remove any helper fields or fields that cause errors
+      const fieldsToRemove = ['type', 'created_at'];
+      fieldsToRemove.forEach(f => delete (dataToSave as any)[f]);
 
       if (type === 'practice') {
-        dataToSave.updated_at = new Date().toISOString();
+        (dataToSave as any).updated_at = new Date().toISOString();
         if (!dataToSave.id) {
-          dataToSave.created_by = user.id;
+          (dataToSave as any).created_by = user.id;
         }
       } else {
-        // Exam items don't have updated_at or created_by in schema
-        // Ensure they have exam_id if new? But normally we only edit existing ones here.
         if (!dataToSave.id && !dataToSave.exam_id) {
           throw new Error("Exam ID is required for new Exam questions. Please add questions through the Exam Builder.");
         }
@@ -173,12 +319,8 @@ const QuestionBankPage: React.FC = () => {
       
       let result;
       if (dataToSave.id) {
-        // Remove fields that shouldn't be updated or cause errors
-        const { created_at, updated_at, ...updateData } = dataToSave;
-        if (type === 'practice') {
-          updateData.updated_at = new Date().toISOString();
-        }
-        result = await supabase.from(table).update(updateData).eq('id', dataToSave.id);
+        const { id, ...updateData } = dataToSave;
+        result = await supabase.from(table).update(updateData).eq('id', id);
       } else {
         result = await supabase.from(table).insert([dataToSave]);
       }
@@ -190,22 +332,79 @@ const QuestionBankPage: React.FC = () => {
       await fetchData();
     } catch (err) {
       console.error('Error saving question:', err);
-      alert('Failed to save question');
+      alert(err instanceof Error ? err.message : 'Failed to save question');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (q: any) => {
-    if (!confirm('Are you sure you want to delete this question?')) return;
+  const confirmDelete = (item: any) => {
+    setDeleteConfirm({
+      open: true,
+      item,
+      isBatch: false
+    });
+  };
+
+  const confirmBatchDelete = () => {
+    if (selectedItems.length === 0) return;
+    setDeleteConfirm({
+      open: true,
+      item: null,
+      isBatch: true
+    });
+  };
+
+  const executeDelete = async () => {
+    setSaving(true);
     try {
-      const table = q.type === 'practice' ? 'practice_questions' : 'mock_exam_items';
-      const { error } = await supabase.from(table).delete().eq('id', q.id);
-      if (error) throw error;
+      if (deleteConfirm.isBatch) {
+        // Handle Batch Delete
+        const practiceIds = selectedItems.filter(i => i.type === 'practice').map(i => i.id);
+        const examIds = selectedItems.filter(i => i.type === 'exam').map(i => i.id);
+
+        if (practiceIds.length > 0) {
+          const { error } = await supabase.from('practice_questions').delete().in('id', practiceIds);
+          if (error) throw error;
+        }
+        if (examIds.length > 0) {
+          const { error } = await supabase.from('mock_exam_items').delete().in('id', examIds);
+          if (error) throw error;
+        }
+      } else if (deleteConfirm.item) {
+        // Handle Individual Delete
+        const q = deleteConfirm.item;
+        const table = q.type === 'practice' ? 'practice_questions' : 'mock_exam_items';
+        const { error } = await supabase.from(table).delete().eq('id', q.id);
+        if (error) throw error;
+      }
+
+      setDeleteConfirm({ open: false, item: null, isBatch: false });
+      setSelectedItems([]);
       await fetchData();
     } catch (err) {
-      console.error('Error deleting question:', err);
-      alert('Failed to delete question');
+      console.error('Error deleting:', err);
+      alert('Failed to delete question(s)');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleSelect = (item: any) => {
+    setSelectedItems(prev => {
+      const isSelected = prev.some(i => i.id === item.id && i.type === item.type);
+      if (isSelected) {
+        return prev.filter(i => !(i.id === item.id && i.type === item.type));
+      }
+      return [...prev, item];
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedItems.length === questions.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems([...questions]);
     }
   };
 
@@ -240,8 +439,19 @@ const QuestionBankPage: React.FC = () => {
           <p className="text-slate-500 mt-1">Manage all practice and examination questions in one place.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold text-sm hover:bg-slate-50 transition-all">
-            <Upload size={16} />
+          <input 
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".csv,.docx"
+            className="hidden"
+          />
+          <button 
+            onClick={handleImportClick}
+            disabled={importing}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-50"
+          >
+            {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
             Import
           </button>
           <button 
@@ -253,6 +463,33 @@ const QuestionBankPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {importResults && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <GlassCard className="p-4 bg-emerald-50 border-emerald-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500 text-white rounded-lg">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-emerald-800">Successfully Imported!</p>
+                  <p className="text-xs text-emerald-600 font-medium">
+                    {importResults.success} out of {importResults.total} questions were added to the bank.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setImportResults(null)} className="p-2 text-emerald-400 hover:text-emerald-600 rounded-lg">
+                <X size={18} />
+              </button>
+            </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <GlassCard className="p-4 border-slate-200">
         <div className="flex flex-wrap items-center gap-4">
@@ -329,18 +566,47 @@ const QuestionBankPage: React.FC = () => {
       ) : (
         <>
           <div className="flex items-center justify-between mb-4 px-1">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-700">
-                {totalCount} total questions
-              </span>
-              <span className="text-xs text-slate-400">
-                (Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)})
-              </span>
+            <div className="flex items-center gap-4">
+              <div 
+                onClick={toggleSelectAll}
+                className="flex items-center gap-2 cursor-pointer group"
+              >
+                <div className={`w-5 h-5 rounded border transition-all flex items-center justify-center ${
+                  selectedItems.length === questions.length && questions.length > 0
+                    ? 'bg-indigo-600 border-indigo-600 text-white' 
+                    : 'bg-white border-slate-300 group-hover:border-indigo-400'
+                }`}>
+                  {selectedItems.length === questions.length && questions.length > 0 && <CheckCircle2 size={14} />}
+                </div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Select All</span>
+              </div>
+
+              {selectedItems.length > 0 && (
+                <button 
+                  onClick={confirmBatchDelete}
+                  className="flex items-center gap-2 px-3 py-1 bg-red-50 text-red-600 border border-red-100 rounded-lg font-bold text-xs hover:bg-red-100 transition-all"
+                >
+                  <Trash2 size={14} />
+                  Delete Selected ({selectedItems.length})
+                </button>
+              )}
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-700">
+                  {totalCount} total questions
+                </span>
+                <span className="text-xs text-slate-400">
+                  (Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)})
+                </span>
+              </div>
             </div>
           </div>
           
           <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" : "space-y-4"}>
-            {questions.map((q, i) => (
+            {questions.map((q, i) => {
+              const isSelected = selectedItems.some(item => item.id === q.id && item.type === q.type);
+              
+              return (
               <motion.div
                 key={`${q.type}-${q.id}`}
                 initial={{ opacity: 0, y: 20 }}
@@ -348,9 +614,21 @@ const QuestionBankPage: React.FC = () => {
                 transition={{ delay: i * 0.05 }}
                 layout
               >
-                <GlassCard className="p-5 hover:border-indigo-200 hover:shadow-lg transition-all group border-slate-200 bg-white">
+                <GlassCard 
+                  className={`p-5 hover:border-indigo-200 hover:shadow-lg transition-all group border-slate-200 bg-white relative ${isSelected ? 'ring-2 ring-indigo-500 border-indigo-500' : ''}`}
+                >
+                  {/* Selection Checkbox */}
+                  <div 
+                    onClick={() => toggleSelect(q)}
+                    className={`absolute top-4 left-4 z-10 w-5 h-5 rounded border transition-all cursor-pointer flex items-center justify-center ${
+                      isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300 opacity-0 group-hover:opacity-100 hover:border-indigo-400'
+                    }`}
+                  >
+                    {isSelected && <CheckCircle2 size={14} />}
+                  </div>
+
                   {/* Fixed Card Header Labeling */}
-                  <div className="flex justify-between items-start mb-4">
+                  <div className="flex justify-between items-start mb-4 pl-8">
                     <div className="flex flex-wrap gap-2 items-center">
                       <div className="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600 mr-1">
                         {((currentPage - 1) * pageSize) + i + 1}
@@ -369,20 +647,20 @@ const QuestionBankPage: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => openEditor(q)}
-                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(q)}
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); openEditor(q); }}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); confirmDelete(q); }}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                 </div>
                 
                 <h4 className="text-slate-800 font-bold mb-4 line-clamp-3 leading-relaxed text-sm">
@@ -420,8 +698,9 @@ const QuestionBankPage: React.FC = () => {
                   </div>
                 </div>
               </GlassCard>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Pagination Controls */}
@@ -536,6 +815,26 @@ const QuestionBankPage: React.FC = () => {
                        </div>
                     </div>
 
+                    {editingQuestion.type === 'exam' && !editingQuestion.id && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Mock Exam</label>
+                        <select 
+                          value={editingQuestion.exam_id || ''}
+                          onChange={(e) => setEditingQuestion({...editingQuestion, exam_id: e.target.value})}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 h-11 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                        >
+                          <option value="">Select an Exam...</option>
+                          {exams.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                        </select>
+                        {!editingQuestion.exam_id && (
+                           <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1 mt-1">
+                             <AlertTriangle size={10} />
+                             Required for Exam questions
+                           </p>
+                        )}
+                      </div>
+                    )}
+
                     {editingQuestion.type === 'practice' && (
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Practice Part</label>
@@ -611,15 +910,24 @@ const QuestionBankPage: React.FC = () => {
 
               <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                  <AlertCircle size={16} />
-                  Validation passed
+                  {editingQuestion.type === 'practice' ? (
+                    <div className="flex items-center gap-2">
+                       <Tag size={12} />
+                       <span>Practice Repository Item</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                       <ShieldCheck size={12} />
+                       <span>Official Exam Content</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-4">
                   <button 
                     onClick={() => setIsEditorOpen(false)}
                     className="px-6 py-3 rounded-2xl font-bold text-slate-500 hover:text-slate-800 transition-all"
                   >
-                    Discard Changes
+                    Cancel
                   </button>
                   <button 
                     onClick={handleSave}
@@ -627,7 +935,57 @@ const QuestionBankPage: React.FC = () => {
                     className="flex items-center gap-2 px-10 py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 disabled:opacity-50"
                   >
                     {saving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-                    {editingQuestion.id ? 'Update Question' : 'Seal in Bank'}
+                    {editingQuestion.id ? 'Save Changes' : 'Create Question'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>,
+          document.body
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirm.open && createPortal(
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteConfirm({ open: false, item: null, isBatch: false })}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden relative z-10 p-8"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-6">
+                  <AlertTriangle size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Confirm Delete</h3>
+                <p className="text-slate-500 mb-8">
+                  {deleteConfirm.isBatch 
+                    ? `Are you sure you want to permanently delete ${selectedItems.length} selected questions? This action cannot be undone.`
+                    : 'Are you sure you want to permanently delete this question? This action cannot be undone.'}
+                </p>
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() => setDeleteConfirm({ open: false, item: null, isBatch: false })}
+                    className="flex-1 px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeDelete}
+                    disabled={saving}
+                    className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-100 flex items-center justify-center gap-2"
+                  >
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                    Delete {deleteConfirm.isBatch ? 'All' : 'Now'}
                   </button>
                 </div>
               </div>

@@ -15,7 +15,11 @@ import {
   FileText,
   ShieldCheck,
   Upload,
-  Download
+  Download,
+  Database,
+  Search,
+  Check,
+  X
 } from 'lucide-react';
 import Papa from 'papaparse';
 import mammoth from 'mammoth';
@@ -47,6 +51,7 @@ const ExamBuilderPage: React.FC = () => {
   const [fixedSubjectId, setFixedSubjectId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const currentItem = items[selectedIndex];
@@ -614,6 +619,15 @@ const ExamBuilderPage: React.FC = () => {
             <span className="hidden md:inline">Import File</span>
           </button>
           <button 
+            onClick={() => setIsBankModalOpen(true)}
+            disabled={!fixedSubjectId}
+            className="p-2.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-100 transition-all text-sm disabled:opacity-50"
+            title="Import from Question Bank"
+          >
+            <Database size={18} />
+            <span className="hidden md:inline">Bank Import</span>
+          </button>
+          <button 
             onClick={downloadTemplate}
             className="p-2.5 bg-white text-slate-600 border border-slate-200 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all text-sm"
             title="Download CSV Template"
@@ -957,6 +971,228 @@ const ExamBuilderPage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Question Bank Import Modal */}
+      <AnimatePresence>
+        {isBankModalOpen && (
+          <BankImportModal 
+            isOpen={isBankModalOpen} 
+            onClose={() => setIsBankModalOpen(false)}
+            onImport={(selectedQuestions) => {
+              const newItems = [...items];
+              let currentIdx = selectedIndex;
+              
+              selectedQuestions.forEach(q => {
+                if (currentIdx < newItems.length) {
+                  newItems[currentIdx] = {
+                    ...newItems[currentIdx],
+                    question: q.question,
+                    choice_a: q.choice_a,
+                    choice_b: q.choice_b,
+                    choice_c: q.choice_c,
+                    choice_d: q.choice_d,
+                    correct_answer: q.correct_answer,
+                    subject_id: fixedSubjectId || q.subject_id
+                  };
+                  currentIdx++;
+                }
+              });
+              
+              setItems(newItems);
+              setHasUnsavedChanges(true);
+              setIsBankModalOpen(false);
+            }}
+            subjectId={fixedSubjectId || ''}
+            subjectName={session?.subject_name || ''}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+interface BankImportModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onImport: (questions: any[]) => void;
+  subjectId: string;
+  subjectName: string;
+}
+
+const BankImportModal: React.FC<BankImportModalProps> = ({ isOpen, onClose, onImport, subjectId, subjectName }) => {
+  const [loading, setLoading] = useState(true);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    fetchBankQuestions();
+  }, [subjectId, searchQuery]);
+
+  const fetchBankQuestions = async () => {
+    setLoading(true);
+    try {
+      let query = supabase
+        .from('mock_exam_items')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .neq('question', '');
+        
+      if (searchQuery) query = query.ilike('question', `%${searchQuery}%`);
+      
+      const { data } = await query.limit(100);
+      setQuestions(data?.map(d => ({ ...d, type: 'exam' })) || []);
+    } catch (err) {
+      console.error('Error fetching bank questions:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) newSelected.delete(id);
+    else newSelected.add(id);
+    setSelectedIds(newSelected);
+  };
+
+  const handleImport = () => {
+    const selected = questions.filter(q => selectedIds.has(q.id));
+    onImport(selected);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col relative z-10"
+      >
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+              <Database size={20} />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-800">Import from Question Bank</h3>
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest">{subjectName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex-1 max-w-lg relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search in bank..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+             <div className="text-center">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Found</p>
+                <p className="text-sm font-black text-slate-700">{questions.length}</p>
+             </div>
+             <div className="w-[1px] h-4 bg-slate-200" />
+             <div className="text-center">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Source</p>
+                <p className="text-sm font-black text-slate-700">Exam Items</p>
+             </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="animate-spin text-indigo-600 mb-2" size={32} />
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Searching the bank...</p>
+            </div>
+          ) : questions.length === 0 ? (
+            <div className="text-center py-20">
+              <Database className="mx-auto text-slate-200 mb-4" size={48} />
+              <p className="text-slate-500 font-medium">No questions found for this subject.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {questions.map((q) => (
+                <div 
+                  key={q.id}
+                  onClick={() => toggleSelection(q.id)}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer group ${
+                    selectedIds.has(q.id) 
+                      ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200' 
+                      : 'bg-white border-slate-100 hover:border-indigo-100'
+                  }`}
+                >
+                  <div className="flex gap-4">
+                    <div className={`mt-1 shrink-0 w-5 h-5 rounded flex items-center justify-center transition-all ${
+                      selectedIds.has(q.id) ? 'bg-indigo-600 text-white' : 'border-2 border-slate-200 bg-white group-hover:border-indigo-300'
+                    }`}>
+                      {selectedIds.has(q.id) && <Check size={14} />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                          q.type === 'practice' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
+                        }`}>
+                          {q.type}
+                        </span>
+                        {q.explanation && (
+                          <span className="text-[10px] font-bold text-slate-400 italic">Has explanation</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-slate-700 leading-relaxed mb-3">{q.question}</p>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 opacity-60">
+                         {['a', 'b', 'c', 'd'].map(opt => (
+                           <div key={opt} className={`text-[10px] font-medium flex items-center gap-2 ${q.correct_answer === opt ? 'text-emerald-600 font-bold' : 'text-slate-500'}`}>
+                             <span className="uppercase">{opt}.</span>
+                             <span className="truncate">{q[`choice_${opt}`]}</span>
+                           </div>
+                         ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+          <p className="text-xs font-bold text-slate-400">
+            {selectedIds.size} questions selected
+          </p>
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:text-slate-800 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleImport}
+              disabled={selectedIds.size === 0}
+              className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+            >
+              Import Selection
+            </button>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };
